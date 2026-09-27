@@ -161,3 +161,7 @@ nvim-treesitter pins.
 ## Disclaimer
 
 This plugin was mostly created with the help of AI.
+
+## License
+
+[MIT](LICENSE)
