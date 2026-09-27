@@ -1,0 +1,365 @@
+*nvim-typst.txt*   A Neovim-only Typst plugin built on LSP and tree-sitter
+
+Author:  Roland Leißa
+License: MIT
+
+==============================================================================
+CONTENTS                                                 *nvim-typst-contents*
+
+  1. Introduction ....................... |nvim-typst-introduction|
+  2. Requirements ....................... |nvim-typst-requirements|
+  3. Installation ....................... |nvim-typst-installation|
+  4. Configuration ...................... |nvim-typst-configuration|
+  5. Mappings ........................... |nvim-typst-mappings|
+  6. Commands ........................... |nvim-typst-commands|
+  7. The main file ...................... |nvim-typst-main-file|
+  8. Compiler ........................... |nvim-typst-compiler|
+  9. Viewer ............................. |nvim-typst-viewer|
+ 10. Quickfix ........................... |nvim-typst-quickfix|
+ 11. LSP ................................ |nvim-typst-lsp|
+ 12. Tree-sitter ........................ |nvim-typst-treesitter|
+ 13. Events ............................. |nvim-typst-events|
+ 14. Differences from nvim-tex .......... |nvim-typst-nvim-tex|
+
+==============================================================================
+1. INTRODUCTION                                      *nvim-typst-introduction*
+
+nvim-typst is a Typst plugin for Neovim, the sibling of nvim-tex. It has the
+same interface -- the same mappings, commands, option names and events, with
+`Tex` replaced by `Typst` -- and the same two restrictions:
+
+  - Neovim only. There is no Vim compatibility layer and no Vimscript.
+  - Structure comes from tree-sitter, language intelligence from the LSP.
+    The plugin has no Typst parser and no syntax-group heuristics of its own.
+
+What the plugin itself provides is the part neither tree-sitter nor tinymist
+covers: finding the main file of a multi-file document, driving `typst watch`
+and `typst compile`, the quickfix list, and opening the PDF.
+
+==============================================================================
+2. REQUIREMENTS                                      *nvim-typst-requirements*
+
+Required:
+  - Neovim 0.10 or newer (0.11+ recommended)
+  - `typst`: https://github.com/typst/typst
+  - The `typst` tree-sitter parser: `:TSInstall typst`
+
+Optional but recommended:
+  - `tinymist` for completion, diagnostics, references, renaming and
+    formatting: https://github.com/Myriad-Dreamin/tinymist
+  - A PDF viewer that reloads a changed file: zathura, sioyek, okular, Skim
+
+Run `:checkhealth nvim-typst` to see what is available.
+
+==============================================================================
+3. INSTALLATION                                      *nvim-typst-installation*
+
+Calling `setup` is optional. The defaults apply as soon as the plugin is
+loaded; call |nvim-typst-setup()| only to change them.
+
+lazy.nvim: >lua
+
+    {
+      'leissa/nvim-typst',
+      ft = { 'typst' },
+      opts = {},
+    }
+<
+`opts = {}` only exists to make lazy.nvim call `setup`.
+
+`vim.pack` (Neovim 0.12+): >lua
+
+    vim.pack.add({ 'https://github.com/leissa/nvim-typst' })
+<
+Native |packages|: >sh
+
+    git clone https://github.com/leissa/nvim-typst \
+      ~/.local/share/nvim/site/pack/plugins/start/nvim-typst
+<
+Run `:helptags ALL` afterwards if your plugin manager does not generate help
+tags for you.
+
+==============================================================================
+4. CONFIGURATION                                    *nvim-typst-configuration*
+
+                                                          *nvim-typst-setup()*
+>lua
+    require('nvim-typst').setup({
+      compiler = {
+        typst = {
+          continuous = true,
+          out_dir = 'build',
+        },
+      },
+      view = { general = { executable = 'zathura' } },
+      mappings = { prefix = '<localleader>' },
+    })
+<
+The full default table lives in `lua/nvim-typst/config.lua` and is printed by
+`:TypstInfo!`. The keys:
+
+`enabled`                     Set to false to disable the plugin entirely.
+`filetypes`                   Filetypes to attach to.
+`main_file`                   Force the main file. A string, or a
+                            function(bufnr) returning a path. See
+                            |nvim-typst-main-file|.
+`root_markers`                Files marking the project root, Typst's
+                            `--root`. Default `{ 'typst.toml', '.git' }`.
+`cache_root`                  Where scratch data is kept.
+
+`compiler.enabled`            Enable the compiler interface.
+`compiler.method`             `'typst'`, the only backend so far.
+`compiler.silent`             Suppress start/stop/success messages.
+`compiler.build_on_save`      Run a single shot compilation on `:write`.
+`compiler.typst.*`            See |nvim-typst-compiler|.
+
+`view.enabled`                Enable the viewer interface.
+`view.method`                 `'general'`, the only method so far.
+`view.general.executable`     The viewer. Default `xdg-open` (`open` on
+                            macOS).
+`view.general.args`           Its arguments; `@pdf` is the PDF.
+
+`qf.*`                        See |nvim-typst-quickfix|.
+`lsp.*`                       See |nvim-typst-lsp|.
+`treesitter.*`                See |nvim-typst-treesitter|.
+`mappings.*`                  See |nvim-typst-mappings|.
+
+==============================================================================
+5. MAPPINGS                                              *nvim-typst-mappings*
+
+All mappings are buffer-local and are created when the plugin attaches to a
+Typst buffer. The keys are nvim-tex's; those whose nvim-tex action has no
+Typst counterpart yet are left unmapped. >lua
+
+    require('nvim-typst').setup({
+      mappings = {
+        enabled = true,          -- all mappings
+        prefix = '<localleader>',
+      },
+    })
+<
+                                                  *nvim-typst-leader-mappings*
+  LHS                 ACTION                                       MODE ~
+  <localleader>i      project information                            `n`
+  <localleader>I      project information, full                      `n`
+  <localleader>v      view the PDF                                   `n`
+  <localleader>l      start or stop compilation                      `n`
+  <localleader>S      compile once                                   `n`
+  <localleader>k      stop the compilation                           `n`
+  <localleader>K      stop all compilations                          `n`
+  <localleader>e      open the quickfix list                         `n`
+  <localleader>E      cycle the quickfix severity level              `n`
+  <localleader>o      show the raw compiler output                   `n`
+  <localleader>g      compilation status                             `n`
+  <localleader>G      compilation status of all projects             `n`
+  <localleader>c      clean generated files (typst leaves none)      `n`
+  <localleader>C      clean all output, the PDF included             `n`
+  <localleader>x      reload nvim-typst                              `n`
+  <localleader>X      forget all project state                       `n`
+  <localleader>s      toggle the main file                           `n`
+
+Everything is also available as a command (|nvim-typst-commands|), so a
+different key layout is a matter of mapping those instead.
+
+==============================================================================
+6. COMMANDS                                              *nvim-typst-commands*
+
+Every command acts on the project of the current buffer.
+
+:TypstCompile                                                  *:TypstCompile*
+    Start compiling; stop if a compilation is running. In continuous mode
+    this runs `typst watch`, which rebuilds on every change until stopped.
+
+:TypstCompileSS                                              *:TypstCompileSS*
+    Compile once with `typst compile`, whatever `continuous` says.
+
+:TypstCompileOutput                                      *:TypstCompileOutput*
+    Show the raw output of the compiler.
+
+:TypstStop                                                        *:TypstStop*
+:TypstStopAll                                                  *:TypstStopAll*
+    Stop the compilation of this project, or of all projects.
+
+:TypstClean[!]                                                   *:TypstClean*
+    Remove generated files. Typst writes nothing but the PDF, so without the
+    bang there is nothing to do; with it the PDF is removed.
+
+:TypstView                                                        *:TypstView*
+    Open the PDF, unless the viewer started earlier is still running.
+
+:TypstErrors                                                    *:TypstErrors*
+    Fill and open the quickfix list from the last run.
+
+:TypstQfLevel [level]                                          *:TypstQfLevel*
+    Set the lowest severity shown in the quickfix list, `error` or
+    `warning`, or cycle it without an argument.
+
+:TypstStatus                                                    *:TypstStatus*
+:TypstStatusAll                                              *:TypstStatusAll*
+    Report the compilation status of this project, or of all projects.
+
+:TypstInfo[!]                                                     *:TypstInfo*
+    Show the project: main file, root, output, compiler, LSP, parser and
+    viewer. With the bang also the included files and the configuration.
+
+:TypstToggleMain                                            *:TypstToggleMain*
+    Toggle the main file between the detected one and the current buffer.
+
+:TypstReload                                                    *:TypstReload*
+    Reload the plugin's Lua modules, keeping the configuration.
+
+:TypstReloadState                                          *:TypstReloadState*
+    Forget all project state; the main files are detected anew.
+
+==============================================================================
+7. THE MAIN FILE                                        *nvim-typst-main-file*
+
+Compilation always runs on the project's main file, never on the buffer you
+happen to be in. It is the first of:
+
+  1. `b:typst_main`, which |:TypstToggleMain| sets.
+  2. The `main_file` option.
+  3. A directive in the first or last five lines of the buffer: >typst
+         // !TYPST main = thesis.typ
+<    It is `main` rather than LaTeX's `root` because "root" means something
+     else in Typst. A missing `.typ` extension is added.
+  4. An open project whose main file `#include`s or `#import`s the buffer.
+  5. A file in this or up to five parent directories that includes or
+     imports the buffer, followed up the chain: a chapter included by a part
+     included by the thesis resolves to the thesis. The search does not leave
+     the directory holding a root marker.
+  6. The buffer itself. Typst has no `\begin{document}`: every file compiles
+     on its own.
+
+The project root, Typst's `--root`, is the nearest directory at or above the
+main file holding one of `root_markers`, or the main file's directory. Typst
+only reads files inside the root, and resolves absolute paths such as
+`/figures/a.svg` against it. The compiler runs there and tinymist is rooted
+there too.
+
+==============================================================================
+8. COMPILER                                              *nvim-typst-compiler*
+
+`compiler.typst` holds the options of the `typst` backend:
+
+`executable`    `'typst'`, or a list such as `{ 'nix', 'run', 'nixpkgs#typst',
+              '--' }`.
+`continuous`    `true` (the default) runs `typst watch`; `false` makes every
+              |:TypstCompile| a single `typst compile`.
+`options`       Extra flags, e.g. `{ '--font-path', 'fonts' }`. `--root` and
+              `--diagnostic-format short` are always passed.
+`out_dir`       Where the PDF goes, relative to the main file's directory.
+              Empty (the default) puts it next to the main file.
+              `$NVIM_TYPST_OUTPUT_DIRECTORY` overrides it.
+`hooks`         Functions called with every line of compiler output.
+
+In continuous mode every watch cycle is reported on its own: its diagnostics
+replace the quickfix list, and a success or failure message and event follow.
+The compilations are stopped when Neovim exits.
+
+==============================================================================
+9. VIEWER                                                  *nvim-typst-viewer*
+
+Typst has no SyncTeX, so there is no forward or inverse search: |:TypstView|
+opens the PDF with `view.general.executable` and does not start the viewer a
+second time while it is still running. Viewers that watch the file reload
+after every compilation on their own. >lua
+
+    require('nvim-typst').setup({
+      view = { general = { executable = 'zathura' } },
+    })
+<
+`xdg-open`, the default, hands the PDF to another process and exits at once,
+so with it every |:TypstView| opens the PDF anew.
+
+==============================================================================
+10. QUICKFIX                                             *nvim-typst-quickfix*
+
+typst's diagnostics fill the quickfix list after every run, errors first.
+Paths are resolved against the project root; a diagnostic inside a package
+(`@preview/cetz:0.3.1/src/draw.typ`) points into the package directory, and
+one without a location goes to the main file.
+
+`qf.enabled`          Collect diagnostics at all.
+`qf.auto_open`        Open the window when there are entries.
+`qf.open_on_warning`  Also open it for warnings alone.
+`qf.level`            The lowest severity shown: `'warning'` (the default)
+                    or `'error'`. |:TypstQfLevel| changes it for the session.
+`qf.autojump`         Jump to the first entry.
+`qf.auto_close`       Close the window after a clean run.
+`qf.ignore_filters`   Lua patterns; matching messages are dropped.
+`qf.height`           Height of the window.
+
+==============================================================================
+11. LSP                                                       *nvim-typst-lsp*
+
+tinymist is started per project root with |vim.lsp.start()|. If a tinymist
+client is already attached -- because you configure it through
+nvim-lspconfig or |vim.lsp.enable()| -- nvim-typst leaves it alone; set
+`lsp.enabled = false` to never start one.
+
+`lsp.enabled`     Start tinymist.
+`lsp.name`        The client name, `'tinymist'`.
+`lsp.cmd`         The command.
+`lsp.pin_main`    Tell tinymist which file is the main one. Without it, an
+                included chapter is checked on its own, and every label and
+                variable it takes from the rest of the document is reported
+                as undefined. Works with a tinymist you configure yourself
+                too.
+`lsp.settings`    tinymist's settings. `rootPath` is filled in from the
+                project; `exportPdf = 'never'` leaves compiling to
+                nvim-typst.
+`lsp.config`      Extra keys for |vim.lsp.start()|: capabilities, on_attach,
+                handlers, ...
+
+==============================================================================
+12. TREE-SITTER                                        *nvim-typst-treesitter*
+
+nvim-typst reads the parse tree of https://github.com/uben0/tree-sitter-typst,
+the grammar nvim-treesitter installs.
+
+`treesitter.enabled`              Use the parser.
+`treesitter.warn_missing_parser`  Warn once when it is missing.
+`treesitter.highlight`            Start tree-sitter highlighting.
+
+Neovim ships no highlight query for Typst; nvim-treesitter does. Without one,
+`syntax/typst.vim` stays in charge of highlighting.
+
+==============================================================================
+13. EVENTS                                                 *nvim-typst-events*
+
+nvim-typst fires |User| autocommands:
+
+  `NvimTypstAttach`          the plugin attached to a buffer; `data.bufnr`
+  `NvimTypstCompileStarted`  a compilation started
+  `NvimTypstCompileSuccess`  a run (or watch cycle) succeeded
+  `NvimTypstCompileFailed`   a run (or watch cycle) failed
+  `NvimTypstCompileStopped`  the compiler exited
+
+The compile events carry `data.main`, `data.root` and `data.status`. The
+project itself is `require('nvim-typst.project').projects[data.main]`. >lua
+
+    vim.api.nvim_create_autocmd('User', {
+      pattern = 'NvimTypstCompileSuccess',
+      callback = function(args) print('built ' .. args.data.main) end,
+    })
+<
+==============================================================================
+14. DIFFERENCES FROM NVIM-TEX                            *nvim-typst-nvim-tex*
+
+The mappings, commands, options and events are nvim-tex's, with `Tex`
+replaced by `Typst`. Where Typst differs:
+
+  - One compiler, `typst`, with `watch` for continuous mode. There is no log
+    file (`<localleader>q`) and nothing to clean but the PDF.
+  - No SyncTeX: no forward or inverse search (`<localleader>r`), and the
+    viewer is a plain command.
+  - The main file directive is `// !TYPST main = ...`, and `b:typst_main`
+    replaces `b:tex_main`.
+  - `root_markers` is new: Typst's `--root` has no LaTeX counterpart.
+  - The quickfix levels are `error` and `warning`; typst has no info level.
+
+Not there yet: motions, text objects, the `ds`/`cs`/`ts` edits, the table of
+contents, folding, conceal and citations.
+
+ vim:tw=78:ts=8:ft=help:norl:

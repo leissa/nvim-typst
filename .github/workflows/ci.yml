@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Keep in sync with the Makefile.
+  TS_TYPST_REV: 46cf4ded12ee974a70bf8457263b67ad7ee0379d
+
+jobs:
+  test:
+    name: test (${{ matrix.neovim }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The oldest supported release, plus the two moving targets.
+        neovim: [v0.10.4, stable, nightly]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Neovim
+        uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: ${{ matrix.neovim }}
+
+      - name: Install Typst
+        uses: typst-community/setup-typst@v4
+
+      - name: Cache the typst tree-sitter parser
+        id: parser
+        uses: actions/cache@v4
+        with:
+          path: .deps/parser
+          key: typst-parser-${{ runner.os }}-${{ env.TS_TYPST_REV }}
+
+      - name: Build the typst tree-sitter parser
+        if: steps.parser.outputs.cache-hit != 'true'
+        run: make parser
+
+      - name: Run the test suite
+        env:
+          # Fail instead of skipping if the parser or the compiler did not
+          # make it into place.
+          NVIM_TYPST_REQUIRE_PARSER: "1"
+          NVIM_TYPST_REQUIRE_TYPST: "1"
+        run: make test
+
+  format:
+    name: format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: JohnnyMorganz/stylua-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          version: latest
+          args: --check lua plugin tests
+
+  doc:
+    name: doc
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Neovim
+        uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: stable
+
+      - name: Generate the help tags
+        run: make doc
