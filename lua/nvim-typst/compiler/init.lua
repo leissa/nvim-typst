@@ -91,7 +91,7 @@ local function finish_run(project, lines, code, saw_failure)
 end
 
 ---@param project table
----@param opts table|nil `{ continuous = boolean, target = string, on_success = function }`
+---@param opts table|nil `{ continuous = boolean, target = string, on_success = function, on_exit = function }`
 function M.start(project, opts)
   opts = opts or {}
   if not config.get('compiler', 'enabled') then
@@ -233,6 +233,9 @@ function M.start(project, opts)
         end
       end
       emit('CompileStopped', project)
+      if opts.on_exit then
+        opts.on_exit()
+      end
     end)
   end)
 
@@ -290,6 +293,92 @@ function M.compile_single_shot(project, opts)
     return
   end
   M.start(project, opts)
+end
+
+--- Compile `lines` of a buffer as a document of its own, with the preamble
+--- of the main file in front, and open the result.
+---
+--- The fragment is written to a hidden file next to the buffer's file, so
+--- that its relative paths resolve as they do in the document, and removed
+--- once it is compiled. The PDF goes to the project's cache directory.
+--- Diagnostics are mapped back to the buffer (and to the main file for the
+--- preamble).
+---@param project table
+---@param lines string[]
+---@param opts table|nil `{ bufnr = integer, first = integer }` where `lines` come from
+function M.compile_selected(project, lines, opts)
+  opts = opts or {}
+  local bufnr = (opts.bufnr == nil or opts.bufnr == 0) and vim.api.nvim_get_current_buf() or opts.bufnr
+  local first = opts.first or 1
+  local backend = M.backend()
+  if not backend then
+    return
+  end
+  if not backend.preamble then
+    util.error(("compiler '%s' cannot compile a selection"):format(backend.name))
+    return
+  end
+  local fragment = project.fragment
+  if fragment and M.is_running(fragment) then
+    util.warn('the selection is still being compiled')
+    return
+  end
+
+  local source = util.normalize(vim.api.nvim_buf_get_name(bufnr))
+  local dir = source ~= '' and vim.fs.dirname(source) or project.dir
+  local main_buf = vim.fn.bufnr(project.main)
+  local main_lines = main_buf > 0
+      and vim.api.nvim_buf_is_loaded(main_buf)
+      and vim.api.nvim_buf_get_lines(main_buf, 0, -1, false)
+    or util.readlines(project.main)
+  -- Selecting in the main file itself must not repeat its preamble.
+  local preamble = source ~= project.main and backend.preamble(main_lines, project.main, project.root, dir) or {}
+  if not preamble then
+    util.error("the 'typst' tree-sitter parser is needed to find the preamble")
+    return
+  end
+
+  local target = util.join(dir, ('.%s.selected.typ'):format(project.name))
+  util.writelines(target, vim.list_extend(vim.list_extend({}, preamble), lines))
+
+  local offset = #preamble
+  fragment = fragment
+    or {
+      name = 'selected',
+      root = project.root,
+      out_dir = project_mod.cache_dir(project),
+      out_dir_set = true,
+      output = {},
+    }
+  fragment.main, fragment.dir = target, dir
+  --- Point the diagnostics of the hidden file at where the lines came from.
+  fragment.qf_translate = function(item)
+    if item.filename ~= target then
+      return item
+    end
+    if item.lnum <= offset then
+      item.filename = project.main
+    elseif source ~= '' then
+      item.filename, item.lnum = source, item.lnum - offset + first - 1
+    else
+      item.filename, item.bufnr, item.lnum = nil, bufnr, item.lnum - offset + first - 1
+    end
+    return item
+  end
+  project.fragment = fragment
+
+  M.start(fragment, {
+    continuous = false,
+    on_success = function()
+      require('nvim-typst.viewer').view(fragment, { pdf = true })
+    end,
+    on_exit = function()
+      vim.fn.delete(target)
+    end,
+  })
+  if not M.is_running(fragment) then
+    vim.fn.delete(target)
+  end
 end
 
 ---@param project table

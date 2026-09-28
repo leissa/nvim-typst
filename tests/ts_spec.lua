@@ -35,6 +35,13 @@ describe('ts', function()
       T.falsy(ts.ancestor(node, ts.CODE))
     end)
 
+    it('finds the node at the very start of the document', function()
+      local bufnr = H.buf({ '$x$ and text' })
+      H.cursor(1, 0)
+      T.eq('math', ts.node_at_cursor(bufnr):type())
+      T.ok(ts.in_math(bufnr))
+    end)
+
     it('tells math from text', function()
       local bufnr = H.buf(DOC)
       H.cursor_at('alpha')

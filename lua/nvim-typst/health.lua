@@ -73,13 +73,24 @@ function M.check()
   local method = config.get('view', 'method')
   local viewer = require('nvim-typst.viewer')
   local view_backend = viewer.backends[method]
-  if view_backend and view_backend.available() then
+  if method == 'tinymist' then
+    if not config.get('lsp', 'enabled') then
+      vim.health.info('the tinymist preview runs in the LSP; make sure your own tinymist setup is attached')
+    elseif view_backend.available() then
+      vim.health.ok('the tinymist preview is available (it runs in the tinymist language server)')
+    else
+      vim.health.error('the tinymist preview needs tinymist', { 'https://github.com/Myriad-Dreamin/tinymist' })
+    end
+  elseif view_backend and view_backend.available() then
     vim.health.ok(('viewer %s is available (%s)'):format(method, config.get('view', method, 'executable')))
   else
     vim.health.warn(('viewer %s is not available'):format(tostring(method)), {
       'Set view.general.executable to your PDF viewer, e.g. "zathura".',
     })
   end
+
+  vim.health.start('nvim-typst: citations')
+  check_executable(util.as_cmd(config.get('cite', 'curl'))[1], 'Only :TypstCite needs it.', false)
 end
 
 return M

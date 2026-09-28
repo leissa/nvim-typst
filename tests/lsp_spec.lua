@@ -24,7 +24,7 @@ local function fake_server(commands)
         return true, id
       end,
       notify = function(method)
-        if method == 'exit' then
+        if method == 'exit' and not closing then
           closing = true
           dispatchers.on_exit(0, 15)
         end
@@ -34,7 +34,10 @@ local function fake_server(commands)
         return closing
       end,
       terminate = function()
-        closing = true
+        if not closing then
+          closing = true
+          dispatchers.on_exit(0, 15)
+        end
       end,
     }
   end

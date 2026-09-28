@@ -34,6 +34,7 @@ local function request(client, method, params, handler, bufnr)
   ---@diagnostic disable-next-line: param-type-mismatch
   return client.request(method, params, handler, bufnr)
 end
+M.request = request
 
 --- Is a client with this name already attached to `bufnr`?
 ---@param bufnr integer
@@ -112,13 +113,18 @@ end
 ---@param command string
 ---@param arguments table|nil
 ---@param bufnr integer|nil
+---@param handler fun(err: table|nil, result: any, client: vim.lsp.Client)|nil called with the response
 ---@return boolean sent
-function M.execute(command, arguments, bufnr)
+function M.execute(command, arguments, bufnr, handler)
   local client = M.client(bufnr)
   if not client then
     return false
   end
-  request(client, 'workspace/executeCommand', { command = command, arguments = arguments or {} }, function() end, bufnr)
+  request(client, 'workspace/executeCommand', { command = command, arguments = arguments or {} }, function(err, result)
+    if handler then
+      handler(err, result, client)
+    end
+  end, bufnr)
   return true
 end
 

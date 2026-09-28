@@ -180,7 +180,12 @@ end
 ---@param project table
 ---@return table[]
 function M.collect(project)
-  return M.parse(project.last_output or {}, project.root, project.main)
+  local items = M.parse(project.last_output or {}, project.root, project.main)
+  -- A compiled selection points its diagnostics back at the buffer.
+  if project.qf_translate then
+    items = vim.tbl_map(project.qf_translate, items)
+  end
+  return items
 end
 
 --- Split `items` into those the current level shows and those it hides,

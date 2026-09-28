@@ -17,20 +17,22 @@ Two rules shape the design:
   references, rename and formatting come from
   [tinymist](https://github.com/Myriad-Dreamin/tinymist).
 
-What is left is the part neither of those covers: finding the main file of a
-multi-file document, driving `typst watch` and `typst compile`, the quickfix
-list, and opening the PDF.
+Motions, text objects, the `ds`/`cs`/`ts` edits, the table of contents,
+indentation, folding and conceal read the parse tree. What is left is the part
+neither of those covers: finding the main file of a multi-file document,
+driving `typst watch` and `typst compile`, the quickfix list, and opening the
+PDF or tinymist's live preview.
 
 ## Status
 
-First milestone: compiler, LSP and tree-sitter integration. Continuous
-(`typst watch`) and single shot compilation, a quickfix list filled after every
-watch cycle, main file and project root detection, tinymist with the main file
-pinned, and tree-sitter highlighting. A test suite runs in CI on Neovim 0.10,
-stable and nightly.
-
-Not there yet: motions, text objects, the `ds`/`cs`/`ts` edits, the table of
-contents, folding, conceal and citations.
+Continuous (`typst watch`) and single shot compilation, a quickfix list filled
+after every watch cycle, main file and project root detection, tinymist with
+the main file pinned, and tinymist's live preview with forward and inverse
+search. On the editing side: nvim-tex's motions, text objects and
+`ds`/`cs`/`ts` edits translated to Typst, a table of contents across
+`#include`s, tree-sitter indentation, folding and conceal, word counts,
+compiling a selection on its own, and citing from DBLP. A test suite runs in
+CI on Neovim 0.10, stable and nightly.
 
 ## Requirements
 
@@ -38,8 +40,9 @@ contents, folding, conceal and citations.
 - [`typst`](https://github.com/typst/typst)
 - The `typst` tree-sitter parser — `:TSInstall typst`
 
-Optional: [`tinymist`](https://github.com/Myriad-Dreamin/tinymist), and a PDF
-viewer that reloads a changed file (zathura, sioyek, okular, Skim).
+Optional: [`tinymist`](https://github.com/Myriad-Dreamin/tinymist) (also for
+the live preview), a PDF viewer that reloads a changed file (zathura, sioyek,
+okular, Skim), and `curl` for `:TypstCite`.
 
 `:checkhealth nvim-typst` reports what is missing.
 
@@ -82,8 +85,12 @@ require('nvim-typst').setup({
     },
   },
   view = { general = { executable = 'zathura' } },
+  fold = { enabled = true },
 })
 ```
+
+To use tinymist's live preview in the browser instead of a PDF viewer, set
+`view = { method = 'tinymist' }`; see [below](#the-preview).
 
 `:TypstInfo!` prints the full effective configuration. The defaults live in
 [`lua/nvim-typst/config.lua`](lua/nvim-typst/config.lua) and are documented in
@@ -92,23 +99,58 @@ require('nvim-typst').setup({
 ## Mappings
 
 The keys are nvim-tex's; those whose nvim-tex action has no Typst
-counterpart yet are left unmapped.
+counterpart are left unmapped.
 
-| Key              | Action                                  |
-| ---------------- | --------------------------------------- |
-| `<localleader>l` | start / stop compilation (`typst watch`) |
-| `<localleader>S` | compile once                            |
-| `<localleader>k` | stop — `K` stops all                    |
-| `<localleader>v` | view the PDF                            |
+| Key              | Action                                               |
+| ---------------- | ---------------------------------------------------- |
+| `<localleader>l` | start / stop compilation (`typst watch`)             |
+| `<localleader>S` | compile once                                         |
+| `<localleader>k` | stop — `K` stops all                                 |
+| `<localleader>v` | view the PDF, or the preview (forward search)        |
 | `<localleader>e` | quickfix list — `E` cycles the level, `o` raw output |
-| `<localleader>c` | clean — `C` also removes the PDF        |
-| `<localleader>i` | project info — `I` full                 |
-| `<localleader>g` | status — `G` for all projects           |
-| `<localleader>s` | toggle the main file                    |
-| `<localleader>x` | reload — `X` clears project state       |
+| `<localleader>c` | clean — `C` also removes the PDF                     |
+| `<localleader>t` | table of contents — `T` toggles                      |
+| `<localleader>i` | project info — `I` full                              |
+| `<localleader>g` | status — `G` for all projects                        |
+| `<localleader>a` | context menu (reference, citation, include, import)  |
+| `<localleader>b` | search DBLP and cite (`:TypstCite`)                  |
+| `<localleader>s` | toggle the main file                                 |
+| `<localleader>L` | compile the selection as a standalone document       |
+| `<localleader>x` | reload — `X` clears project state                    |
+
+Motions (normal, visual, operator-pending, with a count):
+
+| Key       | Motion                                 | Key       | Motion         |
+| --------- | -------------------------------------- | --------- | -------------- |
+| `]]` `[[` | heading                                | `][` `[]` | section end    |
+| `]m` `[m` | function call (`#emph[…]`)             | `]M` `[M` | its end        |
+| `]n` `[n` | math start                             | `]N` `[N` | math end       |
+| `]/` `[/` | comment                                | `]*` `[*` | end of comment |
+| `%`       | matching `$`, `*` or `_`               |           |                |
+
+Text objects: `a$`/`i$` math, `ac`/`ic` function call, `ad`/`id`
+delimiters, `am`/`im` list item, `aP`/`iP` section.
+
+Editing: `ds$` `cs$` `ts$` (delete, re-layout, toggle inline/display math),
+`dsc` `csc` (unwrap, rename a function call — `*x*` and `_x_` count as
+`#strong[x]` and `#emph[x]`), `dsd` `csd` `tsd` (delete, change delimiters,
+toggle `lr(…)`), `tsf` (`a/b` ↔ `frac(a, b)`), and `<F7>` to wrap the word or
+selection in a call. nvim-tex's insert-mode `]]` is there as
+`mappings.insert_close`, off by default since `]]` is ordinary Typst.
+
+`:TypstCountWords` counts the words of the whole document, includes and all,
+read off the parse tree; given a range it counts only that, and `!` shows a
+per-file report. `:TypstCountLetters` does the same for letters.
+
+`:TypstCite [query]` searches [DBLP](https://dblp.org) for a paper, lets you
+pick one and edit its key, appends the BibTeX entry to the first `.bib` file a
+`#bibliography(…)` names, and inserts `@key`. Needs `curl`; see
+`:help nvim-typst-cite`.
 
 Every mapping has a command behind it (`:TypstCompile`, `:TypstView`,
-`:TypstErrors`, …).
+`:TypstToc`, …), so a different layout is just a matter of mapping those
+instead. Groups can be disabled individually via `mappings.motions`,
+`mappings.text_objects` and `mappings.surround`.
 
 ## The main file
 
@@ -132,6 +174,25 @@ pins the main file in it, so that an included chapter is checked as part of the
 whole document instead of reporting every label it uses as undefined. It sets
 `exportPdf = 'never'`, since nvim-typst does the compiling. See
 `:help nvim-typst-lsp`.
+
+## The preview
+
+With `view = { method = 'tinymist' }`, `<localleader>v` opens tinymist's live
+preview in the browser. It renders the buffers as you type, without
+compiling. Once it runs, `<localleader>v` (`:TypstForwardSearch`) scrolls it to
+the cursor, and a click in the preview jumps to the source in Neovim — the
+Typst counterpart of SyncTeX. `view.tinymist.follow_cursor = true` keeps it
+scrolled along. See `:help nvim-typst-preview`.
+
+## Indentation, folding and conceal
+
+nvim-typst sets a tree-sitter `indentexpr`: multi-line `(…)`, `[…]`, `{…}` and
+`$…$` indent their contents, and list items keep the structure the parse tree
+gives them. `fold = { enabled = true }` folds sections, multi-line code,
+math, raw blocks and comments. With `conceallevel` set, `alpha` shows as α,
+`RR` as ℝ, `arrow.r` as →, `x^2` as x², `bb(N)` as ℕ and `*bold*` as bold —
+only in math where it is math, as the parse tree says. See
+`:help nvim-typst-indent`, `nvim-typst-fold` and `nvim-typst-conceal`.
 
 ## Documentation
 

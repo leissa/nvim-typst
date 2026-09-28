@@ -132,6 +132,79 @@ local COMMANDS = {
     end,
     { desc = 'Toggle the main file between detected and current buffer' },
   },
+  {
+    'TypstCite',
+    function(opts)
+      require('nvim-typst.cite').cite(project(), opts.args)
+    end,
+    { nargs = '*', desc = 'Search online for a paper, add it to the bibliography and cite it' },
+  },
+  {
+    'TypstContextMenu',
+    function()
+      require('nvim-typst.context').menu(project())
+    end,
+    { desc = 'Act on the reference, citation, include or import under the cursor' },
+  },
+  {
+    'TypstForwardSearch',
+    function()
+      viewer.forward_search(project())
+    end,
+    { desc = 'Scroll the tinymist preview to the cursor (starting it if needed)' },
+  },
+  {
+    'TypstViewClose',
+    function()
+      viewer.close(project())
+    end,
+    { desc = 'Close the viewer, or stop the tinymist preview' },
+  },
+  {
+    'TypstCompileSelected',
+    function(opts)
+      local lines = vim.api.nvim_buf_get_lines(0, opts.line1 - 1, opts.line2, false)
+      compiler.compile_selected(project(), lines, { first = opts.line1 })
+    end,
+    { range = '%', desc = 'Compile the lines in range as a standalone document' },
+  },
+  {
+    'TypstCountWords',
+    function(opts)
+      require('nvim-typst.count').count(project(), {
+        detailed = opts.bang,
+        first = opts.range > 0 and opts.line1 or nil,
+        last = opts.range > 0 and opts.line2 or nil,
+      })
+    end,
+    { bang = true, range = true, desc = 'Count the words of the document or range (! for a report)' },
+  },
+  {
+    'TypstCountLetters',
+    function(opts)
+      require('nvim-typst.count').count(project(), {
+        letters = true,
+        detailed = opts.bang,
+        first = opts.range > 0 and opts.line1 or nil,
+        last = opts.range > 0 and opts.line2 or nil,
+      })
+    end,
+    { bang = true, range = true, desc = 'Count the letters of the document or range (! for a report)' },
+  },
+  {
+    'TypstToc',
+    function()
+      require('nvim-typst.toc').open(project())
+    end,
+    { desc = 'Open the table of contents' },
+  },
+  {
+    'TypstTocToggle',
+    function()
+      require('nvim-typst.toc').toggle(project())
+    end,
+    { desc = 'Toggle the table of contents' },
+  },
 }
 
 --- The names of all commands.

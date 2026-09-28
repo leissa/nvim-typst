@@ -48,6 +48,15 @@ local function treesitter_setup(bufnr)
   if opts.highlight and M.has_highlights() then
     pcall(vim.treesitter.start, bufnr, 'typst')
   end
+  if config.get('conceal', 'enabled') then
+    require('nvim-typst.conceal').attach(bufnr)
+  end
+  if config.get('indent', 'enabled') then
+    require('nvim-typst.indent').attach(bufnr)
+  end
+  if config.get('fold', 'enabled') then
+    require('nvim-typst.fold').attach(bufnr)
+  end
 end
 
 --- Attach the plugin to `bufnr`.

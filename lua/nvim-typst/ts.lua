@@ -58,7 +58,11 @@ function M.root(bufnr)
   return trees and trees[1] and trees[1]:root() or nil
 end
 
---- The smallest named node covering the cursor.
+--- The smallest named node covering the character under the cursor.
+---
+--- The range asked for is that character, not the zero-width position before
+--- it: at the very start of the document a zero-width range yields the root
+--- rather than the node starting there.
 ---
 --- `vim.treesitter.get_node` needs an already parsed tree, which is not
 --- guaranteed right after a buffer is created, so the root is fetched (and
@@ -78,7 +82,8 @@ function M.node_at_cursor(bufnr, pos)
   local line = vim.api.nvim_buf_get_lines(bufnr, row, row + 1, false)[1] or ''
   local col = math.max(0, math.min(pos[2], math.max(0, #line - 1)))
 
-  return root:named_descendant_for_range(row, col, row, col)
+  local stop = #line > 0 and col + 1 or col
+  return root:named_descendant_for_range(row, col, row, stop)
 end
 
 --- Walk up from `node` to the first ancestor (inclusive) matching `types`.

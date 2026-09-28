@@ -5,11 +5,17 @@ local nvim_typst = require('nvim-typst')
 --- Every command `nvim-typst.commands` is meant to register: nvim-tex's,
 --- as far as Typst has them.
 local COMMANDS = {
+  'TypstCite',
   'TypstClean',
   'TypstCompile',
   'TypstCompileOutput',
   'TypstCompileSS',
+  'TypstCompileSelected',
+  'TypstContextMenu',
+  'TypstCountLetters',
+  'TypstCountWords',
   'TypstErrors',
+  'TypstForwardSearch',
   'TypstInfo',
   'TypstQfLevel',
   'TypstReload',
@@ -18,12 +24,16 @@ local COMMANDS = {
   'TypstStatusAll',
   'TypstStop',
   'TypstStopAll',
+  'TypstToc',
+  'TypstTocToggle',
   'TypstToggleMain',
   'TypstView',
+  'TypstViewClose',
 }
 
 --- The leader keys, which are nvim-tex's.
-local LEADER_KEYS = { 'l', 'S', 'k', 'K', 'v', 'e', 'E', 'o', 'c', 'C', 'g', 'G', 'i', 'I', 's', 'x', 'X' }
+local LEADER_KEYS =
+  { 'l', 'L', 'S', 'k', 'K', 'v', 'e', 'E', 'o', 'c', 'C', 't', 'T', 'g', 'G', 'i', 'I', 'a', 'b', 's', 'x', 'X' }
 
 ---@param bufnr integer
 ---@return string[]
@@ -166,6 +176,18 @@ describe('plugin', function()
       config.setup({ lsp = { enabled = false }, mappings = { enabled = false } })
       local bufnr = H.buf({ 'text' })
       T.excludes(normal_lhss(bufnr), vim.g.maplocalleader .. 'l')
+    end)
+
+    it('maps ]] in insert mode only with mappings.insert_close', function()
+      local function insert_lhss(bufnr)
+        return vim.tbl_map(function(map)
+          return map.lhs
+        end, vim.api.nvim_buf_get_keymap(bufnr, 'i'))
+      end
+      config.setup({ lsp = { enabled = false } })
+      T.excludes(insert_lhss(H.buf({ 'text' })), ']]')
+      config.setup({ lsp = { enabled = false }, mappings = { insert_close = true } })
+      T.contains(insert_lhss(H.buf({ 'text' })), ']]')
     end)
 
     it('honours mappings.prefix', function()
