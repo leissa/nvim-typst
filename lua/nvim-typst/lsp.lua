@@ -15,7 +15,9 @@ local util = require('nvim-typst.util')
 
 local M = {}
 
-local warned = false
+--- commands already reported as missing
+---@type table<string, boolean>
+local warned = {}
 
 --- client id -> the main file pinned in that client
 ---@type table<integer, string>
@@ -80,8 +82,8 @@ function M.attach(bufnr)
 
   local cmd = opts.cmd
   if not util.executable(cmd[1]) then
-    if not warned then
-      warned = true
+    if not warned[cmd[1]] then
+      warned[cmd[1]] = true
       util.warn(("'%s' not found; LSP features are unavailable"):format(cmd[1]))
     end
     return nil

@@ -212,6 +212,8 @@ describe('preview', function()
     end)
 
     it('needs the language server', function()
+      -- An executable stand-in, so that it is the missing client that is reported.
+      config.setup({ view = { method = 'tinymist', tinymist = { executable = false } }, lsp = { cmd = { 'true' } } })
       local main = H.write(dir .. '/main.typ', '= A')
       H.buf({ '= A' }, { name = main, filetype = 'text' })
       local project = project_mod.get(0)

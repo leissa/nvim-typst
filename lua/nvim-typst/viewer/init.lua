@@ -75,10 +75,12 @@ function M.view(project, opts)
     return
   end
 
-  local backend = M.backend()
-  if backend and backend.view and opts and opts.pdf then
-    backend = M.backend('general')
+  local method = config.get('view', 'method')
+  local preferred = M.backends[method]
+  if opts and opts.pdf and preferred and preferred.view then
+    method = 'general'
   end
+  local backend = M.backend(method)
   if not backend then
     return
   end

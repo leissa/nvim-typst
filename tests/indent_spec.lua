@@ -81,6 +81,8 @@ describe('indent', function()
     }
     local bufnr = H.buf(doc)
     vim.bo[bufnr].shiftwidth = 2
+    -- 0.10 rewrites a kept indent, which would turn the spaces into a tab.
+    vim.bo[bufnr].expandtab = true
     indent.attach(bufnr)
     vim.cmd('silent normal! gg=G')
     T.eq(doc, H.lines(bufnr))
@@ -90,6 +92,8 @@ describe('indent', function()
     local doc = { '#block[', '  ```py', 'def f():', '        return 1', '  ```', ']' }
     local bufnr = H.buf(doc)
     vim.bo[bufnr].shiftwidth = 2
+    -- 0.10 rewrites a kept indent, which would turn the spaces into a tab.
+    vim.bo[bufnr].expandtab = true
     indent.attach(bufnr)
     vim.cmd('silent normal! gg=G')
     T.eq(doc, H.lines(bufnr))
