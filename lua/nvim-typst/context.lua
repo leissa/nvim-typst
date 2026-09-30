@@ -241,6 +241,53 @@ local function string_child(node)
   return nil
 end
 
+--- The web page documenting the package `spec`: its Typst Universe page for
+--- `@preview/...`, nil for other namespaces, which are not published.
+---@param spec string
+---@return string|nil
+function M.package_url(spec)
+  local name, version = spec:match('^@preview/([^:/]+):?([^:/]*)$')
+  if not name then
+    return nil
+  end
+  return 'https://typst.app/universe/package/' .. name .. (version ~= '' and ('/' .. version) or '')
+end
+
+--- `K`: the documentation of the package imported under the cursor -- its
+--- Universe page, or the README of a local package -- and the LSP hover
+--- everywhere else.
+---@param project table
+function M.doc_package(project)
+  local bufnr = vim.api.nvim_get_current_buf()
+  local import = ts.ancestor(node_at_cursor(bufnr), { import = true, include = true })
+  local path = import and string_child(import)
+  local spec = path and unquote(path, bufnr)
+  if spec and spec:match('^@') then
+    local url = M.package_url(spec)
+    if url then
+      vim.ui.open(url)
+      util.info('opening ' .. url)
+      return
+    end
+    local dir = M.package_dir(spec, project.root)
+    for _, readme in ipairs(dir and { 'README.md', 'README.typ', 'README' } or {}) do
+      local file = util.join(dir, readme)
+      if util.is_file(file) then
+        vim.cmd('edit ' .. vim.fn.fnameescape(file))
+        return
+      end
+    end
+    util.warn('no documentation for ' .. spec)
+    return
+  end
+
+  if lsp.client(bufnr) then
+    vim.lsp.buf.hover()
+    return
+  end
+  util.warn('no package under the cursor, and no LSP to ask')
+end
+
 --- Act on whatever is under the cursor.
 ---@param project table
 function M.menu(project)

@@ -107,6 +107,20 @@ function M.view(project, opts)
   project.viewer = { handle = handle, pid = handle.pid, backend = backend.name }
 end
 
+--- Show a compiled fragment (see `compiler.compile_fragment`): below
+--- `anchor` in the buffer with `view.snacks`, or else in the viewer, which
+--- reloads the PDF when it is open already.
+---@param fragment table
+---@param anchor NvimTypstAnchor|nil
+function M.show_fragment(fragment, anchor)
+  if fragment.format == 'png' and require('nvim-typst.viewer.snacks').show(fragment, anchor) then
+    return
+  end
+  if not M.is_running(fragment) then
+    M.view(fragment, { pdf = true })
+  end
+end
+
 --- Scroll the viewer to the cursor. Only the `tinymist` preview can.
 ---@param project table
 function M.forward_search(project)

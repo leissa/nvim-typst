@@ -350,12 +350,13 @@ function M.buffers(project)
   return out
 end
 
---- The compiled PDF for `project`.
+--- The compiled output of `project`, the PDF unless `project.format` says
+--- otherwise.
 ---@param project table
----@param ext string|nil defaults to 'pdf'
+---@param ext string|nil defaults to `project.format`, or else 'pdf'
 ---@return string
 function M.output_file(project, ext)
-  return util.join(project.out_dir, project.name .. '.' .. (ext or 'pdf'))
+  return util.join(project.out_dir, project.name .. '.' .. (ext or project.format or 'pdf'))
 end
 
 --- Where scratch data is cached.

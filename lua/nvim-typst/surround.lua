@@ -1,11 +1,12 @@
 --- The `ds*` / `cs*` / `ts*` editing mappings plus <F7> and insert-mode `]]`.
 ---
---- nvim-tex's set, translated: Typst has no environments, starred commands,
---- `\\` line breaks or `\left`/`\right`, so those mappings are gone. What is
---- left works on math (`$…$`), function calls (`#emph[…]`, `frac(a, b)`),
---- delimiters and fractions. Deleting, changing and toggling all go through
---- the tree-sitter node under the cursor, so nesting and line breaks do not
---- throw them off.
+--- nvim-tex's set, translated: Typst has no environments, starred commands or
+--- `\\` line breaks, so those mappings are gone. What is left works on math
+--- (`$…$`), function calls (`#emph[…]`, `frac(a, b)`), delimiters (with
+--- `lr(…)` for `\left`/`\right`) and fractions; <F6> and `tse`, the
+--- environment mappings, wrap lines in a content block and toggle lists. Deleting, changing and
+--- toggling all go through the tree-sitter node under the cursor, so nesting
+--- and line breaks do not throw them off.
 local config = require('nvim-typst.config')
 local ts = require('nvim-typst.ts')
 local util = require('nvim-typst.util')
@@ -527,32 +528,108 @@ function M.delim_change(answer)
   replace(sr, sc, er, ec, pair[1])
 end
 
---- Typst's counterpart of `\left…\right`: wrap the delimiters around the
---- cursor in `lr(…)`, or unwrap them again.
-function M.delim_toggle_lr()
+--- The states `tsd` cycles through: the bare brackets, then each entry of
+--- `edit.delim_toggle_mod_list`, as `{ before, after }`.
+---@return string[][]
+local function modifier_cycle()
+  local cycle = { { '', '' } }
+  return vim.list_extend(cycle, config.get('edit', 'delim_toggle_mod_list') or {})
+end
+
+--- The modifier around the brackets `node`: the call wrapping them -- one
+--- whose first argument they are alone, as in `lr((x))`, that is an entry of
+--- `cycle` or an `lr(...)` -- and the index of its entry in `cycle`, 1 for
+--- the bare brackets and an `lr(...)` that is none.
+---@param node TSNode
+---@param cycle string[][]
+---@return TSNode|nil call, integer index
+local function modifier_of(node, cycle)
+  local formula = node:parent()
+  local call = formula and formula:parent()
+  if
+    not (formula and call)
+    or formula:type() ~= 'formula'
+    or formula:named_child_count() ~= 1
+    or call:type() ~= 'call'
+    or not formula:prev_sibling()
+    or formula:prev_sibling():type() ~= '('
+  then
+    return nil, 1
+  end
+  local csr, csc, cer, cec = call:range()
+  local gsr, gsc, ger, gec = node:range()
+  local before, after = text_between(csr, csc, gsr, gsc), text_between(ger, gec, cer, cec)
+  for i = 2, #cycle do
+    if cycle[i][1] == before and cycle[i][2] == after then
+      return call, i
+    end
+  end
+  return text_of(call:child(0)) == 'lr' and call or nil, 1
+end
+
+--- `tsd` / `tsD`, nvim-tex's delimiter modifier cycle: step the brackets
+--- around the cursor through `edit.delim_toggle_mod_list` -- bare, then
+--- wrapped in each entry in turn, `lr((x))`, `lr((x), size: #150%)` -- by
+--- [count] steps, backwards with `reverse`. A call around the brackets that
+--- is no entry but is `lr(...)` counts as bare and is replaced. Math only.
+---@param reverse boolean
+function M.delim_toggle_modifier(reverse)
   local node = find_delims()
   if not node or not ts.ancestor(node, ts.MATH) then
     util.warn('no surrounding delimiter in math')
     return
   end
+  local cycle = modifier_cycle()
+  local call, current = modifier_of(node, cycle)
+  local range = { (call or node):range() }
+  local step = (reverse and -1 or 1) * vim.v.count1
+  local target = cycle[((current - 1 + step) % #cycle) + 1]
+  replace(range[1], range[2], range[3], range[4], target[1] .. text_of(node) .. target[2])
+end
 
-  -- `lr((x))` parses as a call whose only argument is the group.
-  local formula = node:parent()
-  local call = formula and formula:parent()
-  if
-    formula
-    and call
-    and formula:type() == 'formula'
-    and formula:named_child_count() == 1
-    and call:type() == 'call'
-    and text_of(call:child(0)) == 'lr'
-  then
-    local sr, sc, er, ec = call:range()
-    replace(sr, sc, er, ec, text_of(node))
+--- <F8>: wrap every bare pair of brackets in the math around the cursor (in
+--- the whole buffer outside math) in the first entry of
+--- `edit.delim_toggle_mod_list`, `lr(…)`. Brackets that have a modifier
+--- already, and those of calls, `f(x)`, are left as they are.
+function M.delim_add_modifiers()
+  local cycle = modifier_cycle()
+  local mod = cycle[2]
+  local scope = ts.ancestor(ts.node_at_cursor(0), ts.MATH) or ts.root(0)
+  if not (mod and scope) then
     return
   end
-  local sr, sc, er, ec = node:range()
-  replace(sr, sc, er, ec, 'lr(' .. text_of(node) .. ')')
+
+  -- Where to insert what; nested and adjacent pairs share no position with
+  -- an edit already made if they go from the back.
+  local points = {}
+  local function walk(node)
+    if is_delimited(node) and ts.ancestor(node, ts.MATH) and not modifier_of(node, cycle) then
+      local sr, sc, er, ec = node:range()
+      points[#points + 1] = { er, ec, mod[2], 0 }
+      points[#points + 1] = { sr, sc, mod[1], 1 }
+    end
+    for child in node:iter_children() do
+      if child:named() then
+        walk(child)
+      end
+    end
+  end
+  walk(scope)
+
+  -- Back to front; where one pair ends as the next starts, the opening goes
+  -- in first, so the closing lands in front of it.
+  table.sort(points, function(a, b)
+    if a[1] ~= b[1] then
+      return a[1] > b[1]
+    end
+    if a[2] ~= b[2] then
+      return a[2] > b[2]
+    end
+    return a[4] > b[4]
+  end)
+  for _, point in ipairs(points) do
+    replace(point[1], point[2], point[1], point[2], point[3])
+  end
 end
 
 -- ---------------------------------------------------------------------------
@@ -614,6 +691,50 @@ function M.cmd_create(visual, name)
   vim.api.nvim_buf_set_text(0, srow - 1, scol, srow - 1, scol, { opening })
 end
 
+--- One level of indentation, as the buffer's options have it.
+---@return string
+local function indent_unit()
+  return vim.bo.expandtab and string.rep(' ', vim.fn.shiftwidth()) or '\t'
+end
+
+--- <F6>, nvim-tex's environment surround: put lines `first`..`last` into the
+--- content block of a call on lines of its own, `#name[` / `]` in markup and
+--- `name(` / `)` in math, indenting them one level. `name` may carry
+--- arguments, `block(fill: red)`.
+---@param first integer 1-indexed
+---@param last integer 1-indexed
+---@param name string|nil prompted for when nil
+function M.env_surround_lines(first, last, name)
+  name = name or ask('Function: ')
+  if not name then
+    return
+  end
+  local indent = line_at(first):match('^%s*')
+  local opening, closing = call_wrapper(mode_at({ first, #indent }), (name:gsub('^#', '')))
+
+  local unit = indent_unit()
+  local lines = vim.api.nvim_buf_get_lines(0, first - 1, last, false)
+  for i, line in ipairs(lines) do
+    lines[i] = line:match('^%s*$') and '' or (unit .. line)
+  end
+  table.insert(lines, 1, indent .. opening)
+  lines[#lines + 1] = indent .. closing
+  vim.api.nvim_buf_set_lines(0, first - 1, last, false, lines)
+  vim.api.nvim_win_set_cursor(0, { first + 1, #indent + #unit })
+end
+
+--- <F6> in normal mode: the line under the cursor.
+function M.env_surround_line()
+  local row = vim.api.nvim_win_get_cursor(0)[1]
+  M.env_surround_lines(row, row)
+end
+
+--- <F6> in visual mode: the lines of the selection.
+function M.env_surround_visual()
+  vim.cmd('normal! ' .. ESC)
+  M.env_surround_lines(vim.fn.line("'<"), vim.fn.line("'>"))
+end
+
 --- Insert mode: turn the word before the cursor into a call, `#word[|]` in
 --- markup and `word(|)` in math and code.
 function M.cmd_create_insert()
@@ -627,6 +748,66 @@ function M.cmd_create_insert()
   local opening, closing = call_wrapper(mode_at({ row, start - 1 }), word)
   vim.api.nvim_buf_set_text(0, row - 1, start - 1, row - 1, col, { opening .. closing })
   vim.api.nvim_win_set_cursor(0, { row, start - 1 + #opening })
+end
+
+-- ---------------------------------------------------------------------------
+-- Lists
+-- ---------------------------------------------------------------------------
+
+--- The marker of a list item, `-`, `+` or `1.`; nil for a term item.
+---@param item TSNode
+---@return string|nil
+local function item_marker(item)
+  -- The item's own line is enough; its text would include nested lists.
+  local sr, sc = item:start()
+  local head = line_at(sr + 1):sub(sc + 1)
+  return head:match('^([-+])') or head:match('^(%d+%.)')
+end
+
+--- `tse`, nvim-tex's `itemize` <-> `enumerate` toggle: turn the list around
+--- the cursor from bullets (`-`) into numbers (`+`) or back. A list is the run
+--- of items of one kind the cursor's item belongs to; nested lists stay as
+--- they are, and numbered items (`1.`) become bullets.
+function M.env_toggle()
+  local item = ts.ancestor(ts.node_at_cursor(0), { item = true })
+  local marker = item and item_marker(item)
+  if not marker then
+    util.warn('no surrounding list')
+    return
+  end
+  local bullet = marker == '-'
+
+  -- Items of the same kind next to each other, blank lines and comments
+  -- between them allowed.
+  local function same(node)
+    local m = node:type() == 'item' and item_marker(node)
+    return m and ((m == '-') == bullet)
+  end
+  local function skippable(node)
+    return node:type() == 'parbreak' or node:type() == 'comment'
+  end
+  local items = { item }
+  for _, step in ipairs({ 'prev_named_sibling', 'next_named_sibling' }) do
+    local node = item[step](item)
+    while node do
+      if same(node) then
+        items[#items + 1] = node
+      elseif not skippable(node) then
+        break
+      end
+      node = node[step](node)
+    end
+  end
+
+  -- From the bottom up, so that the edits keep the other ranges valid.
+  table.sort(items, function(a, b)
+    return a:start() > b:start()
+  end)
+  for _, node in ipairs(items) do
+    local sr, sc = node:start()
+    local old = item_marker(node)
+    replace(sr, sc, sr, sc + #old, bullet and '+' or '-')
+  end
 end
 
 -- ---------------------------------------------------------------------------

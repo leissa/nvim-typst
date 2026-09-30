@@ -25,6 +25,26 @@ M.RAW = { raw_span = true, raw_blck = true }
 --- `// ...` and `/* ... */`.
 M.COMMENT = { comment = true }
 
+--- Statements that configure the document rather than add to it.
+M.DEFINITION = { let = true, set = true, show = true, import = true }
+
+--- The statement of a `code` node, `let` in `#let x = 1`, when it is a
+--- definition.
+---@param node TSNode
+---@return TSNode|nil
+function M.definition(node)
+  local statement = node:type() == 'code' and node:named_child_count() == 1 and node:named_child(0)
+  return statement and M.DEFINITION[statement:type()] and statement or nil
+end
+
+--- Is `statement` a `show: template`, a show rule for the whole rest of the
+--- document rather than for a selector?
+---@param statement TSNode
+---@return boolean
+function M.is_template(statement)
+  return statement:type() == 'show' and #statement:field('pattern') == 0
+end
+
 local warned = {}
 
 --- Get the Typst parser for `bufnr`, or nil when it is unavailable.

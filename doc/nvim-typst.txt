@@ -25,7 +25,8 @@ CONTENTS                                                 *nvim-typst-contents*
  17. Context menu ....................... |nvim-typst-context-menu|
  18. Word count ......................... |nvim-typst-count|
  19. Events ............................. |nvim-typst-events|
- 20. Differences from nvim-tex .......... |nvim-typst-nvim-tex|
+ 20. Insert mode math mappings ......... |nvim-typst-imaps|
+ 21. Differences from nvim-tex .......... |nvim-typst-nvim-tex|
 
 ==============================================================================
 1. INTRODUCTION                                      *nvim-typst-introduction*
@@ -150,8 +151,9 @@ Typst counterpart are left unmapped. >lua
         prefix = '<localleader>',
         motions = true,          -- ]] [[ ]n ... (n, x, o)
         text_objects = true,     -- a$ i$ ac ic ... (x, o)
-        surround = true,         -- ds$ cs$ ts$ <F7> ...
+        surround = true,         -- ds$ cs$ ts$ <F6> <F7> tse ...
         insert_close = false,    -- ]] in insert mode
+        doc_package = true,      -- K
       },
     })
 <
@@ -178,12 +180,21 @@ Typst counterpart are left unmapped. >lua
   <localleader>C      clean all output, the PDF included             `n`
   <localleader>a      context menu: reference, citation, include     `n`
   <localleader>b      search DBLP and cite                           `n`
+  <localleader>m      list the insert mode math mappings             `n`
+  <localleader>p      preview the math or code under the cursor,    `n x`
+                      or the selected lines, cropped
   <localleader>x      reload nvim-typst                              `n`
   <localleader>X      forget all project state                       `n`
   <localleader>s      toggle the main file                           `n`
 
-nvim-tex's `<localleader>r` (inverse search), `q` (the log) and `m` (the
-insert-mode math mappings) have no Typst counterpart.
+nvim-tex's `<localleader>r` (inverse search) and `q` (the log) have no Typst
+counterpart.
+
+                                                              *nvim-typst-K*
+`K` opens the documentation of the package imported under the cursor: the
+Typst Universe page of an `@preview/...` package (with |vim.ui.open()|), the
+README of any other, downloaded one. Everywhere else it shows the LSP hover,
+as Neovim's own `K` would. `mappings.doc_package = false` leaves `K` alone.
 
 The editing mappings, `ds$`, `csc`, `tsf`, `<F7>` and friends, are described
 in |nvim-typst-surround|.
@@ -267,8 +278,16 @@ Every command acts on the project of the current buffer.
 
 :[range]TypstCompileSelected                           *:TypstCompileSelected*
     Compile the lines in [range] (default: the whole buffer) as a document
-    of its own, with the preamble of the main file in front, and open the
-    PDF. See |nvim-typst-compile-selected|.
+    of its own, with the preamble of the main file in front, and show it:
+    below the lines with snacks.nvim, or else in the PDF viewer. See
+    |nvim-typst-compile-selected|.
+
+:[range]TypstPreviewFragment                           *:TypstPreviewFragment*
+    Compile the math or code under the cursor, or the lines in [range], on
+    a page cropped to it, and show it below. See |nvim-typst-fragment|.
+
+:TypstPreviewClose                                        *:TypstPreviewClose*
+    Remove the fragment shown in the buffer.
 
 :TypstCompileOutput                                      *:TypstCompileOutput*
     Show the raw output of the compiler.
@@ -319,6 +338,17 @@ Every command acts on the project of the current buffer.
 
 :TypstContextMenu                                          *:TypstContextMenu*
     Act on what is under the cursor. See |nvim-typst-context-menu|.
+
+:TypstDocPackage                                          *:TypstDocPackage*
+    Open the documentation of the imported package under the cursor. See
+    |nvim-typst-K|.
+
+:[range]TypstEnvSurround [name]                          *:TypstEnvSurround*
+    Wrap [range] (the current line by default) in the content block of the
+    call [name], asking for it when it is not given. See |nvim-typst-<F6>|.
+
+:TypstImaps                                                      *:TypstImaps*
+    List the insert mode math mappings. See |nvim-typst-imaps|.
 
 :[range]TypstCountWords[!]                                  *:TypstCountWords*
     Count the words of the whole document, following `#include`s from the
@@ -407,6 +437,9 @@ opened with the PDF viewer, `view.general`, even when `view.method` is
 has. Errors are shown in the quickfix list at the lines of the buffer they
 come from (or of the main file, for the preamble).
 
+With snacks.nvim (|nvim-typst-snacks|) the fragment is instead rendered as an
+image, as tall as its content, and shown below its last line.
+
 The selection is compiled once, as a single shot, whatever
 `compiler.typst.continuous` says. Needs the `typst` tree-sitter parser to find
 the preamble.
@@ -489,6 +522,50 @@ configured yourself under the name `lsp.name`.
 `view.tinymist.follow_cursor` Scroll the preview along whenever the cursor
                             moves, once it has rested for
                             `view.tinymist.follow_delay` milliseconds.
+
+                                                         *nvim-typst-fragment*
+Previewing a fragment ~
+
+`<localleader>p` (|:TypstPreviewFragment|), nvim-tex's TikZ preview for
+Typst, compiles what is under the cursor on its own, on a page cropped to it:
+the outermost math around the cursor, or else the outermost embedded code
+that is not a definition, such as `#figure(...)`, `#table(...)` or
+`#cetz.canvas(...)`. In visual mode, and with a [range], it takes the lines
+instead.
+
+The fragment is set in the document it comes from, as with
+|nvim-typst-compile-selected|: after the preamble of the main file, and after
+the top-level `#let`, `#set`, `#show` and `#import` statements of the buffer
+before it. A `#show: template` is left out, since a template typesets a
+title block and the like, which would end up in the preview; its fonts and
+settings go with it. Then `#set page(width: auto, height: auto, ...)` crops
+the page, without header, footer or page number. Errors go to the quickfix
+list, at the lines of the buffer they come from.
+
+`preview.border`   Space around the cropped fragment. Default `'2pt'`.
+
+                                                           *nvim-typst-snacks*
+Fragments in the buffer ~
+
+With snacks.nvim (https://github.com/folke/snacks.nvim) and its image
+support enabled, in a terminal that can show images (kitty, ghostty, WezTerm),
+|:TypstPreviewFragment| and |:TypstCompileSelected| show the fragment right
+below its last line instead of in the viewer. typst renders it as a PNG
+itself, so nothing needs converting. Terminals with unicode placeholders get
+the image in virtual lines that move with the text, others a floating window
+anchored to the line. The image stays until the next fragment replaces it,
+or |:TypstPreviewClose|. Without snacks the PDF opens in the viewer, which a
+viewer that watches the file reloads on the next run. >lua
+
+    view = {
+      snacks = {
+        enabled = true,   -- false: always the viewer
+        scale = 2,        -- magnification over the printed size
+      },
+    }
+<
+`snacks.image.doc.max_width` and `max_height` bound the image.
+`:checkhealth nvim-typst` says whether snacks can show fragments.
 
 ==============================================================================
 10. QUICKFIX                                             *nvim-typst-quickfix*
@@ -603,15 +680,20 @@ example, `vim.opt.foldlevel = 99` starts with every fold open, and
 nvim-tex's `ds*`, `cs*` and `ts*` mappings, translated to Typst. They act on
 the tree-sitter node under the cursor, so nesting and line breaks do not
 matter. Typst has no environments, starred commands, `\\` line breaks or
-`\left`/`\right`, so `dse`, `cse`, `tse`, `tss`, `tsc`, `tsb`, `tsD`, <F6>
-and <F8> have no counterpart and are not mapped. `mappings.surround = false`
+`\left`/`\right`, so `dse`, `cse`, `tss`, `tsc` and `tsb` have no
+counterpart and are not mapped; `lr(…)` stands in for `\left…\right`. Of the environment mappings, <F6> wraps
+lines in a content block and `tse` toggles lists. `mappings.surround = false`
 turns the whole group off.
 
   ds$  cs$  ts$        delete / change the layout of / toggle math
   dsc  csc             unwrap / rename the surrounding function call
-  dsd  csd  tsd        delete / change delimiters, toggle `lr(…)`
+  dsd  csd             delete / change delimiters
+  tsd  tsD             cycle `lr(…)` around delimiters (forwards / back)
+  <F8>                 wrap every bracket pair of the math in `lr(…)`
   tsf                  toggle `a/b` and `frac(a, b)` (also visual)
+  <F6>                 wrap the line / selected lines in a call (n, x)
   <F7>                 wrap word / selection in a call (n, x, i)
+  tse                  toggle the list between `-` and `+`
   ]]                   close the innermost bracket or math (insert mode,
                        only with `mappings.insert_close`)
 
@@ -665,6 +747,27 @@ tsf             Toggle the fraction around the cursor between `a/b` and
                 Insert mode: turn the word before the cursor into a call,
                 `#word[|]` or `word(|)`, with the cursor inside.
 
+                                                             *nvim-typst-<F6>*
+<F6>            nvim-tex's environment surround: put the line under the
+                cursor, or the selected lines, into the content block of a
+                call on lines of their own, asking for the name, and indent
+                them one level ('shiftwidth', 'expandtab'). >
+                    #block[
+                      Some text.
+                    ]
+<               In math the call gets parentheses, `cases(` ... `)`. The
+                name may carry arguments: `box(stroke: red)`. See also
+                |:TypstEnvSurround|.
+
+Lists ~
+                                                              *nvim-typst-tse*
+tse             nvim-tex toggles `itemize` and `enumerate`; this toggles the
+                list around the cursor between bullets (`- x`) and numbers
+                (`+ x`). The list is the run of items of one kind that the
+                cursor's item belongs to, blank lines between them allowed;
+                a nested list is left as it is, and numbered items like
+                `2. x` become bullets.
+
 Delimiters ~
                                                               *nvim-typst-dsd*
 dsd             Delete the brackets around the cursor: `(…)`, `[…]` or
@@ -675,10 +778,21 @@ dsd             Delete the brackets around the cursor: `(…)`, `[…]` or
                                                               *nvim-typst-csd*
 csd             Change those brackets. Asks for a key of `edit.delim_list`.
 
-                                                              *nvim-typst-tsd*
-tsd             Typst's counterpart of `\left…\right`: wrap the brackets
-                around the cursor in `lr(…)`, or unwrap them again. Math
-                only.
+                                                *nvim-typst-tsd* *nvim-typst-tsD*
+tsd             Typst's counterpart of cycling `\left…\right`: step the
+tsD             brackets around the cursor through
+                `edit.delim_toggle_mod_list`, bare first. With the default
+                list, which has only `lr(…)`, both wrap the brackets in
+                `lr(…)` or unwrap them again. `tsD` steps backwards; a
+                [count] takes several steps. An `lr(…)` that is not in the
+                list is replaced by the next entry. Math only.
+
+                                                             *nvim-typst-<F8>*
+<F8>            Wrap every bare bracket pair of the math around the cursor
+                in the first entry of `edit.delim_toggle_mod_list`,
+                `lr(…)`; outside math, of all the math in the buffer.
+                Brackets with a modifier already, and those of calls like
+                `f(x)`, are left alone.
 
                                                              *nvim-typst-i_]]*
 ]]              Insert mode, only with `mappings.insert_close = true`: close
@@ -706,6 +820,14 @@ Options ~
                         ['|'] = { '|', '|' },
                         ['||'] = { '‖', '‖' },
                         ['<'] = { '⟨', '⟩' },
+                      }
+<
+`edit.delim_toggle_mod_list`
+                    What `tsd`/`tsD` wrap the brackets in, in turn: the text
+                    before and after them. Setting it replaces the list. >lua
+                      delim_toggle_mod_list = {
+                        { 'lr(', ')' },
+                        { 'lr(', ', size: #150%)' },
                       }
 <
 ==============================================================================
@@ -854,6 +976,7 @@ In insert mode the cursor ends up behind the key, still in insert mode.
   `#import "@preview/p:v"`  Open the package's entry point, as its
                           `typst.toml` names it. The package has to be
                           downloaded, which the first compilation does.
+                          `K` opens its documentation instead.
   `#bibliography("x.bib")`  Open the bibliography.
 
 Bibliography entries are found in `.bib` files and as top-level keys of
@@ -910,7 +1033,47 @@ project itself is `require('nvim-typst.project').projects[data.main]`. >lua
     })
 <
 ==============================================================================
-20. DIFFERENCES FROM NVIM-TEX                            *nvim-typst-nvim-tex*
+20. INSERT MODE MATH MAPPINGS                               *nvim-typst-imaps*
+
+In math, a leader key -- a backtick by default -- followed by a short
+sequence expands into a symbol or function, as nvim-tex's (and vimtex's)
+imaps do: `` `a `` gives `alpha`, `` `jl `` gives `arrow.r`, `` `8 `` gives
+`infinity`. The styles have a leader of their own, `@`, and wrap the next
+character typed: `@bx` gives `bold(x)`, `@BR` gives `bb(R)`. nvim-tex uses
+`#` for these; in Typst math `#` starts code.
+
+Outside math the keys are inserted as they are typed, so the backtick still
+starts raw text. Math that is being typed and has no closing `$` yet counts.
+In math, `xalpha` is one name rather than `x` times `alpha`, so an expansion
+that would run into a letter before or after the cursor gets a space in
+between.
+
+|:TypstImaps| (`<localleader>m`) lists the mappings. Options, under
+`imaps`:
+
+`imaps.enabled`   Default `true`.
+`imaps.leader`    Typed before every entry without a leader of its own.
+                Default `` ` ``.
+`imaps.disabled`  `lhs` values of `imaps.list` to leave unmapped.
+`imaps.list`      The mappings; see `lua/nvim-typst/config.lua` for the
+                default list, nvim-tex's with the Typst names. Setting it
+                replaces the default list. Each entry is a table:
+                  `lhs`      typed after the leader
+                  `rhs`      the text to insert, or a function(lhs)
+                           returning it
+                  `style`    instead of `rhs`: the function the next
+                           typed character is passed to
+                  `leader`   overrides `imaps.leader`
+                  `wrapper`  when the entry expands: `'math'` (default)
+                           or `'trivial'` (always), or a
+                           function(lhs, expand) returning the text
+
+More entries can be added at run time, to every Typst buffer: >lua
+
+    require('nvim-typst.imaps').add({ lhs = 'o', rhs = 'compose' })
+<
+==============================================================================
+21. DIFFERENCES FROM NVIM-TEX                            *nvim-typst-nvim-tex*
 
 The mappings, commands, options and events are nvim-tex's, with `Tex`
 replaced by `Typst`. Where Typst differs:
@@ -925,12 +1088,19 @@ replaced by `Typst`. Where Typst differs:
     replaces `b:tex_main`.
   - `root_markers` is new: Typst's `--root` has no LaTeX counterpart.
   - The quickfix levels are `error` and `warning`; typst has no info level.
-  - Typst has no environments, so the `e` text objects and edits, `]r`,
-    <F6> and <F8> are gone; `ac`/`ic`, `]m` and `dsc`/`csc` work on
-    function calls instead.
-  - Insert-mode `]]` is off by default (`mappings.insert_close`), and there
-    are no insert-mode math mappings (`<localleader>m`): Typst's math names
-    are short already.
+  - Typst has no environments, so the `e` text objects, `dse`/`cse` and
+    `]r` are gone; `ac`/`ic`, `]m` and `dsc`/`csc` work on function calls
+    instead, <F6> wraps lines in a content block and `tse` toggles lists
+    between `-` and `+`.
+  - `lr(…)` takes the place of `\left…\right` for `tsd`, `tsD` and <F8>;
+    `edit.delim_toggle_mod_list` holds `lr(…)` wrappers, e.g. with a size.
+  - Insert-mode `]]` is off by default (`mappings.insert_close`).
+  - The style imaps use `@` rather than `#` as their leader, and the
+    expansions are Typst names (`alpha`, `bold(x)`); see |nvim-typst-imaps|.
+  - `K` opens a package's Typst Universe page rather than `texdoc`.
+  - There is no TikZ; `<localleader>p` previews the math or code under the
+    cursor instead (|:TypstPreviewFragment|, nvim-tex's `:TexTikzPreview`).
+    typst renders it as a PNG for snacks.nvim, with no PDF to convert.
   - Citations are written as `@key`, into the `.bib` file a
     `#bibliography(...)` names.
 

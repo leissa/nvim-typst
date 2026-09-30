@@ -89,6 +89,17 @@ function M.check()
     })
   end
 
+  if config.get('view', 'snacks', 'enabled') then
+    if require('nvim-typst.viewer.snacks').available() then
+      vim.health.ok('snacks.nvim shows previewed fragments in the buffer')
+    else
+      vim.health.info(
+        'previewed fragments open in the viewer: snacks.nvim with image support in a terminal that can show images'
+          .. ' would show them in the buffer'
+      )
+    end
+  end
+
   vim.health.start('nvim-typst: citations')
   check_executable(util.as_cmd(config.get('cite', 'curl'))[1], 'Only :TypstCite needs it.', false)
 end

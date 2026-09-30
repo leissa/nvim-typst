@@ -3,11 +3,13 @@
 --- The keys are nvim-tex's, which are VimTeX's without the extra `l` layer:
 --- `<localleader>l` compiles, `<localleader>v` views, and so on. Keys whose
 --- nvim-tex action has no Typst counterpart are left unmapped: `r` (the
---- tinymist preview pushes inverse search itself) and `q`, `m`.
+--- tinymist preview pushes inverse search itself) and `q` (Typst writes no
+--- log).
 local cite = require('nvim-typst.cite')
 local compiler = require('nvim-typst.compiler')
 local config = require('nvim-typst.config')
 local context = require('nvim-typst.context')
+local imaps = require('nvim-typst.imaps')
 local info = require('nvim-typst.info')
 local motions = require('nvim-typst.motions')
 local project_mod = require('nvim-typst.project')
@@ -22,6 +24,15 @@ local M = {}
 ---@return table
 local function project()
   return project_mod.get(0)
+end
+
+--- Leave visual mode and return the first line of the selection and its
+--- lines.
+---@return integer first, string[] lines
+local function visual_lines()
+  vim.cmd('normal! ' .. vim.api.nvim_replace_termcodes('<Esc>', true, false, true))
+  local first, last = vim.fn.line("'<"), vim.fn.line("'>")
+  return first, vim.api.nvim_buf_get_lines(0, first - 1, last, false)
 end
 
 ---@param bufnr integer
@@ -57,6 +68,9 @@ local function leader_maps(map, prefix)
   map('n', prefix .. 'T', function()
     toc.toggle(project())
   end, 'toggle table of contents')
+  map('n', prefix .. 'm', function()
+    imaps.list()
+  end, 'list the insert mode mappings')
   map('n', prefix .. 'v', function()
     viewer.view(project())
   end, 'view (forward search with the tinymist preview)')
@@ -68,9 +82,8 @@ local function leader_maps(map, prefix)
     return 'g@'
   end, 'compile the operated text', { expr = true })
   map('x', prefix .. 'L', function()
-    vim.cmd('normal! ' .. vim.api.nvim_replace_termcodes('<Esc>', true, false, true))
-    local first, last = vim.fn.line("'<"), vim.fn.line("'>")
-    compiler.compile_selected(project(), vim.api.nvim_buf_get_lines(0, first - 1, last, false), { first = first })
+    local first, lines = visual_lines()
+    compiler.compile_selected(project(), lines, { first = first })
   end, 'compile the selection')
   map('n', prefix .. 'S', function()
     compiler.compile_single_shot(project())
@@ -118,6 +131,13 @@ local function leader_maps(map, prefix)
   map('n', prefix .. 'b', function()
     cite.cite(project())
   end, 'search online and cite')
+  map('n', prefix .. 'p', function()
+    require('nvim-typst.preview').preview(project())
+  end, 'preview the math or code under the cursor')
+  map('x', prefix .. 'p', function()
+    local first, lines = visual_lines()
+    require('nvim-typst.preview').preview_lines(project(), lines, first)
+  end, 'preview the selected lines')
 end
 
 --- `operatorfunc` for `<localleader>L` in normal mode.
@@ -128,7 +148,9 @@ function M.op_compile_selected(_)
 end
 
 --- Math / call / delimiter editing, and the insert mode helpers. nvim-tex's
---- set minus environments, stars, line breaks and `\left`/`\right`.
+--- set minus stars and line breaks, with `lr(…)` for `\left`/`\right`; the
+--- environment mappings wrap lines in a content block (<F6>) and toggle
+--- lists (`tse`).
 ---@param map function
 local function surround_maps(map)
   map('n', 'ds$', surround.math_delete, 'delete surrounding math')
@@ -152,8 +174,17 @@ local function surround_maps(map)
     surround.toggle_fraction(true)
   end, 'toggle fractions')
   map('n', 'ts$', surround.math_toggle, 'toggle inline/displayed math')
-  map('n', 'tsd', surround.delim_toggle_lr, 'toggle lr(…) around delimiters')
+  map('n', 'tse', surround.env_toggle, 'toggle the list between - and +')
+  map({ 'n', 'x' }, 'tsd', function()
+    surround.delim_toggle_modifier(false)
+  end, 'cycle delimiter modifiers')
+  map({ 'n', 'x' }, 'tsD', function()
+    surround.delim_toggle_modifier(true)
+  end, 'cycle delimiter modifiers (reverse)')
+  map('n', '<F8>', surround.delim_add_modifiers, 'add modifiers to the delimiters in the math')
 
+  map('n', '<F6>', surround.env_surround_line, 'wrap the line in a content block')
+  map('x', '<F6>', surround.env_surround_visual, 'wrap the selected lines in a content block')
   map('n', '<F7>', function()
     surround.cmd_create(false)
   end, 'wrap the word in a function call')
@@ -186,6 +217,11 @@ function M.attach(bufnr)
   end
   if opts.insert_close then
     map('i', ']]', surround.delim_close, 'close the current delimiter or math')
+  end
+  if opts.doc_package then
+    map('n', 'K', function()
+      context.doc_package(project())
+    end, 'package documentation')
   end
 end
 

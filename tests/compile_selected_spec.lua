@@ -68,7 +68,7 @@ describe('compile selected', function()
       H.buf(H.lines(vim.fn.bufadd(chapter)), { name = chapter })
 
       compiler.compile_selected(project, { '#image("fig.svg")', 'Only this.' }, { first = 2 })
-      local fragment = project.fragment
+      local fragment = project.fragments.selected
       T.ok(fragment)
       H.wait(function()
         return not compiler.is_running(fragment) and fragment.last_status ~= 'running'
@@ -86,7 +86,7 @@ describe('compile selected', function()
       H.buf({ 'fine', 'fine', '#nope' }, { name = chapter })
 
       compiler.compile_selected(project, { 'fine', '#nope' }, { first = 2 })
-      local fragment = project.fragment
+      local fragment = project.fragments.selected
       H.wait(function()
         return not compiler.is_running(fragment) and fragment.last_status ~= 'running'
       end, 20000, 'the compilation')

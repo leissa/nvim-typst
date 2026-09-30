@@ -71,6 +71,7 @@ function M.attach(bufnr)
   treesitter_setup(bufnr)
   require('nvim-typst.lsp').attach(bufnr)
   require('nvim-typst.keymaps').attach(bufnr)
+  require('nvim-typst.imaps').attach(bufnr)
 
   if attached[bufnr] then
     return

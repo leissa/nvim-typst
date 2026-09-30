@@ -147,6 +147,46 @@ local COMMANDS = {
     { desc = 'Act on the reference, citation, include or import under the cursor' },
   },
   {
+    'TypstDocPackage',
+    function()
+      require('nvim-typst.context').doc_package(project())
+    end,
+    { desc = 'Open the documentation of the imported package under the cursor' },
+  },
+  {
+    'TypstEnvSurround',
+    function(opts)
+      require('nvim-typst.surround').env_surround_lines(opts.line1, opts.line2, opts.args ~= '' and opts.args or nil)
+    end,
+    { range = true, nargs = '?', desc = 'Wrap the range in the content block of a call' },
+  },
+  {
+    'TypstPreviewFragment',
+    function(opts)
+      local preview = require('nvim-typst.preview')
+      if opts.range > 0 then
+        preview.preview_lines(project(), vim.api.nvim_buf_get_lines(0, opts.line1 - 1, opts.line2, false), opts.line1)
+      else
+        preview.preview(project())
+      end
+    end,
+    { range = true, desc = 'Compile the math or code under the cursor, or the range, on its own and show it' },
+  },
+  {
+    'TypstPreviewClose',
+    function()
+      require('nvim-typst.viewer.snacks').close()
+    end,
+    { desc = 'Remove the fragment preview from the buffer' },
+  },
+  {
+    'TypstImaps',
+    function()
+      require('nvim-typst.imaps').list()
+    end,
+    { desc = 'List the insert mode math mappings' },
+  },
+  {
     'TypstForwardSearch',
     function()
       viewer.forward_search(project())

@@ -14,9 +14,14 @@ local COMMANDS = {
   'TypstContextMenu',
   'TypstCountLetters',
   'TypstCountWords',
+  'TypstDocPackage',
+  'TypstEnvSurround',
   'TypstErrors',
   'TypstForwardSearch',
+  'TypstImaps',
   'TypstInfo',
+  'TypstPreviewClose',
+  'TypstPreviewFragment',
   'TypstQfLevel',
   'TypstReload',
   'TypstReloadState',
@@ -32,8 +37,32 @@ local COMMANDS = {
 }
 
 --- The leader keys, which are nvim-tex's.
-local LEADER_KEYS =
-  { 'l', 'L', 'S', 'k', 'K', 'v', 'e', 'E', 'o', 'c', 'C', 't', 'T', 'g', 'G', 'i', 'I', 'a', 'b', 's', 'x', 'X' }
+local LEADER_KEYS = {
+  'l',
+  'L',
+  'S',
+  'k',
+  'K',
+  'v',
+  'e',
+  'E',
+  'o',
+  'c',
+  'C',
+  't',
+  'T',
+  'g',
+  'G',
+  'i',
+  'I',
+  'a',
+  'b',
+  's',
+  'x',
+  'X',
+  'm',
+  'p',
+}
 
 ---@param bufnr integer
 ---@return string[]

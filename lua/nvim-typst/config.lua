@@ -88,6 +88,23 @@ M.defaults = {
       --- Milliseconds the cursor has to rest before the preview follows.
       follow_delay = 100,
     },
+
+    --- Show compiled fragments (`:TypstPreviewFragment`,
+    --- `:TypstCompileSelected`) below their last line with snacks.nvim's
+    --- image support, when it is enabled and the terminal can show images,
+    --- instead of in the viewer. typst renders them as PNG itself.
+    snacks = {
+      enabled = true,
+      --- Magnification over the fragment's printed size.
+      scale = 2,
+    },
+  },
+
+  --- `:TypstPreviewFragment` compiles the math or code under the cursor on
+  --- its own, on a page cropped to it.
+  preview = {
+    --- Space around the cropped fragment.
+    border = '2pt',
   },
 
   qf = {
@@ -230,6 +247,12 @@ M.defaults = {
     --- `'lines'` puts each `$` on a line of its own, `'display'` writes
     --- `$ x $` in place.
     display_math = 'lines',
+    --- What `tsd` / `tsD` cycle the brackets around the cursor through,
+    --- after the bare brackets: each entry the text before and after them.
+    --- `{ 'lr(', ', size: #150%)' }` adds a larger size.
+    delim_toggle_mod_list = {
+      { 'lr(', ')' },
+    },
     --- The answers `csd` accepts, and the pair each one puts in place.
     delim_list = {
       ['('] = { '(', ')' },
@@ -241,6 +264,117 @@ M.defaults = {
     },
   },
 
+  --- Insert mode math mappings (nvim-tex's `imaps`). See `nvim-typst.imaps`.
+  imaps = {
+    enabled = true,
+    --- Typed before the `lhs` of every entry that does not bring its own.
+    leader = '`',
+    --- `lhs` values from `list` to leave unmapped.
+    disabled = {},
+    --- Every entry is `{ lhs, rhs, leader, style, wrapper }`:
+    ---   `rhs`     the text to insert, or a function returning it.
+    ---   `style`   shorthand for "read one more character and pass it to
+    ---             this function": `@bx` gives `bold(x)`.
+    ---   `leader`  overrides `leader` for this entry.
+    ---   `wrapper` when the expansion happens: `'math'` (the default) only
+    ---             inside math, `'trivial'` always. A function(lhs, expand)
+    ---             may be given instead.
+    --- Entries can also be added one at a time with `imaps.add`.
+    list = {
+      { lhs = '0', rhs = 'emptyset' },
+      { lhs = '2', rhs = 'sqrt' },
+      { lhs = '6', rhs = 'partial' },
+      { lhs = '8', rhs = 'infinity' },
+      { lhs = '=', rhs = 'equiv' },
+      { lhs = '\\', rhs = 'without' },
+      { lhs = '.', rhs = 'dot.op' },
+      { lhs = '*', rhs = 'times' },
+      { lhs = '+', rhs = 'dagger' },
+      { lhs = '<', rhs = 'chevron.l' },
+      { lhs = '>', rhs = 'chevron.r' },
+      { lhs = '[', rhs = 'subset.eq' },
+      { lhs = ']', rhs = 'supset.eq' },
+      { lhs = '(', rhs = 'subset' },
+      { lhs = ')', rhs = 'supset' },
+      { lhs = 'A', rhs = 'forall' },
+      { lhs = 'B', rhs = 'bold' },
+      { lhs = 'E', rhs = 'exists' },
+      { lhs = 'H', rhs = 'planck' },
+      { lhs = 'N', rhs = 'nabla' },
+
+      -- Arrows: `j` plus a direction, shifted for the double stroke.
+      { lhs = 'jh', rhs = 'arrow.l' },
+      { lhs = 'jH', rhs = 'arrow.l.double' },
+      { lhs = 'jj', rhs = 'arrow.b' },
+      { lhs = 'jJ', rhs = 'arrow.b.double' },
+      { lhs = 'jk', rhs = 'arrow.t' },
+      { lhs = 'jK', rhs = 'arrow.t.double' },
+      { lhs = 'jl', rhs = 'arrow.r' },
+      { lhs = 'jL', rhs = 'arrow.r.double' },
+
+      -- Greek, lower case.
+      { lhs = 'a', rhs = 'alpha' },
+      { lhs = 'b', rhs = 'beta' },
+      { lhs = 'c', rhs = 'chi' },
+      { lhs = 'd', rhs = 'delta' },
+      { lhs = 'e', rhs = 'epsilon' },
+      { lhs = 'f', rhs = 'phi' },
+      { lhs = 'g', rhs = 'gamma' },
+      { lhs = 'h', rhs = 'eta' },
+      { lhs = 'i', rhs = 'iota' },
+      { lhs = 'k', rhs = 'kappa' },
+      { lhs = 'l', rhs = 'lambda' },
+      { lhs = 'm', rhs = 'mu' },
+      { lhs = 'n', rhs = 'nu' },
+      { lhs = 'p', rhs = 'pi' },
+      { lhs = 'q', rhs = 'theta' },
+      { lhs = 'r', rhs = 'rho' },
+      { lhs = 's', rhs = 'sigma' },
+      { lhs = 't', rhs = 'tau' },
+      { lhs = 'u', rhs = 'upsilon' },
+      { lhs = 'w', rhs = 'omega' },
+      { lhs = 'x', rhs = 'xi' },
+      { lhs = 'y', rhs = 'psi' },
+      { lhs = 'z', rhs = 'zeta' },
+
+      -- Greek, upper case. The letters that would collide with a symbol
+      -- above (`A`, `B`, `E`, `H`, `N`) are left to the symbol.
+      { lhs = 'D', rhs = 'Delta' },
+      { lhs = 'F', rhs = 'Phi' },
+      { lhs = 'G', rhs = 'Gamma' },
+      { lhs = 'L', rhs = 'Lambda' },
+      { lhs = 'P', rhs = 'Pi' },
+      { lhs = 'Q', rhs = 'Theta' },
+      { lhs = 'S', rhs = 'Sigma' },
+      { lhs = 'U', rhs = 'Upsilon' },
+      { lhs = 'W', rhs = 'Omega' },
+      { lhs = 'X', rhs = 'Xi' },
+      { lhs = 'Y', rhs = 'Psi' },
+
+      -- Greek variants, behind a `v`.
+      { lhs = 've', rhs = 'epsilon.alt' },
+      { lhs = 'vf', rhs = 'phi.alt' },
+      { lhs = 'vk', rhs = 'kappa.alt' },
+      { lhs = 'vp', rhs = 'pi.alt' },
+      { lhs = 'vq', rhs = 'theta.alt' },
+      { lhs = 'vr', rhs = 'rho.alt' },
+
+      -- Styles, behind their own leader: `@`, a style key, and the
+      -- character to wrap. nvim-tex uses `#`, which in Typst math starts
+      -- code (`#box`, `#h`) and so cannot be taken.
+      { leader = '@', lhs = '-', style = 'overline' },
+      { leader = '@', lhs = '/', style = 'cancel' },
+      { leader = '@', lhs = 'b', style = 'bold' },
+      { leader = '@', lhs = 'B', style = 'bb' },
+      { leader = '@', lhs = 'c', style = 'cal' },
+      { leader = '@', lhs = 'f', style = 'frak' },
+
+      -- The leader typed twice inserts itself twice at once, in math and in
+      -- text alike, rather than after a timeout.
+      { lhs = '`', rhs = '``', wrapper = 'trivial' },
+    },
+  },
+
   mappings = {
     enabled = true,
     --- `<localleader>l` compiles, `<localleader>v` views, as in nvim-tex.
@@ -249,12 +383,15 @@ M.defaults = {
     motions = true,
     --- `a$`, `i$`, `ac`, `ic`, ... in visual and operator-pending mode.
     text_objects = true,
-    --- `ds$`, `cs$`, `ts$`, `<F7>`, ...
+    --- `ds$`, `cs$`, `ts$`, `tse`, `<F6>`, `<F7>`, ...
     surround = true,
     --- `]]` in insert mode closes the innermost open delimiter or math, as
     --- in nvim-tex. Off by default: in Typst, `]]` is ordinary text
     --- (`#strong[#emph[x]]`) and would no longer insert itself.
     insert_close = false,
+    --- `K` opens the Typst Universe page of the package imported under the
+    --- cursor, and shows the LSP hover everywhere else.
+    doc_package = true,
   },
 }
 
@@ -273,6 +410,9 @@ local LISTS = {
   { 'view', 'tinymist', 'options' },
   { 'qf', 'ignore_filters' },
   { 'lsp', 'cmd' },
+  { 'imaps', 'list' },
+  { 'edit', 'delim_toggle_mod_list' },
+  { 'imaps', 'disabled' },
 }
 
 ---@param opts table|nil

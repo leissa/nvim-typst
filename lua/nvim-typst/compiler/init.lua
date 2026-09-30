@@ -296,17 +296,28 @@ function M.compile_single_shot(project, opts)
 end
 
 --- Compile `lines` of a buffer as a document of its own, with the preamble
---- of the main file in front, and open the result.
+--- of the main file in front, and show the result: below the last of the
+--- lines when snacks.nvim can show images in the terminal (`view.snacks`),
+--- or else in the viewer.
 ---
 --- The fragment is written to a hidden file next to the buffer's file, so
 --- that its relative paths resolve as they do in the document, and removed
---- once it is compiled. The PDF goes to the project's cache directory.
+--- once it is compiled. The output goes to the project's cache directory.
 --- Diagnostics are mapped back to the buffer (and to the main file for the
 --- preamble).
+---
+--- Each `name` is a project of its own, `project.fragments[name]`, reused
+--- between runs so that the viewer showing it stays open.
+---
+--- `opts`: `bufnr` and `first`, where `lines` come from; `preview`, a
+--- preview of them alone, with the page cropped to them and the
+--- `#show: template` of the preamble left out; `definitions`, more lines of
+--- the buffer to put between the preamble and `lines`, as `{ first, lines }`.
 ---@param project table
+---@param name string
 ---@param lines string[]
----@param opts table|nil `{ bufnr = integer, first = integer }` where `lines` come from
-function M.compile_selected(project, lines, opts)
+---@param opts table|nil
+function M.compile_fragment(project, name, lines, opts)
   opts = opts or {}
   local bufnr = (opts.bufnr == nil or opts.bufnr == 0) and vim.api.nvim_get_current_buf() or opts.bufnr
   local first = opts.first or 1
@@ -314,13 +325,14 @@ function M.compile_selected(project, lines, opts)
   if not backend then
     return
   end
-  if not backend.preamble then
-    util.error(("compiler '%s' cannot compile a selection"):format(backend.name))
+  if not backend.preamble or not backend.fragment_page then
+    util.error(("compiler '%s' cannot compile a fragment"):format(backend.name))
     return
   end
-  local fragment = project.fragment
+  project.fragments = project.fragments or {}
+  local fragment = project.fragments[name]
   if fragment and M.is_running(fragment) then
-    util.warn('the selection is still being compiled')
+    util.warn('the fragment is still being compiled')
     return
   end
 
@@ -331,46 +343,79 @@ function M.compile_selected(project, lines, opts)
       and vim.api.nvim_buf_is_loaded(main_buf)
       and vim.api.nvim_buf_get_lines(main_buf, 0, -1, false)
     or util.readlines(project.main)
-  -- Selecting in the main file itself must not repeat its preamble.
-  local preamble = source ~= project.main and backend.preamble(main_lines, project.main, project.root, dir) or {}
+  -- A fragment of the main file itself must not repeat its preamble.
+  local preamble = source ~= project.main
+      and backend.preamble(main_lines, project.main, project.root, dir, opts.preview)
+    or {}
   if not preamble then
     util.error("the 'typst' tree-sitter parser is needed to find the preamble")
     return
   end
 
-  local target = util.join(dir, ('.%s.selected.typ'):format(project.name))
-  util.writelines(target, vim.list_extend(vim.list_extend({}, preamble), lines))
+  -- The document, and for each of its lines where it comes from: a line of
+  -- the main file (`main`) or of the buffer (`buf`).
+  local document, origin = {}, {}
+  local function add(text, from, lnum)
+    document[#document + 1] = text
+    origin[#origin + 1] = { from, lnum }
+  end
+  for i, line in ipairs(preamble) do
+    add(line, 'main', i)
+  end
+  for _, definition in ipairs(opts.definitions or {}) do
+    for i, line in ipairs(definition.lines) do
+      add(line, 'buf', definition.first + i - 1)
+    end
+  end
+  local snacks = require('nvim-typst.viewer.snacks')
+  local inline = snacks.available()
+  if inline or opts.preview then
+    add(backend.fragment_page(opts.preview == true), 'buf', first)
+  end
+  for i, line in ipairs(lines) do
+    add(line, 'buf', first + i - 1)
+  end
 
-  local offset = #preamble
+  local target = util.join(dir, ('.%s.%s.typ'):format(project.name, name))
+  util.writelines(target, document)
+
   fragment = fragment
     or {
-      name = 'selected',
+      name = name,
       root = project.root,
       out_dir = project_mod.cache_dir(project),
       out_dir_set = true,
       output = {},
     }
   fragment.main, fragment.dir = target, dir
+  fragment.format = inline and 'png' or nil
+  fragment.ppi = inline and snacks.ppi() or nil
   --- Point the diagnostics of the hidden file at where the lines came from.
   fragment.qf_translate = function(item)
     if item.filename ~= target then
       return item
     end
-    if item.lnum <= offset then
-      item.filename = project.main
+    local from = origin[item.lnum] or origin[#origin]
+    if not from then
+      return item
+    end
+    if from[1] == 'main' then
+      item.filename, item.lnum = project.main, from[2]
     elseif source ~= '' then
-      item.filename, item.lnum = source, item.lnum - offset + first - 1
+      item.filename, item.lnum = source, from[2]
     else
-      item.filename, item.bufnr, item.lnum = nil, bufnr, item.lnum - offset + first - 1
+      item.filename, item.bufnr, item.lnum = nil, bufnr, from[2]
     end
     return item
   end
-  project.fragment = fragment
+  project.fragments[name] = fragment
 
+  -- Below the last of the lines.
+  local anchor = inline and snacks.anchor(bufnr, first + #lines - 2) or nil
   M.start(fragment, {
     continuous = false,
     on_success = function()
-      require('nvim-typst.viewer').view(fragment, { pdf = true })
+      require('nvim-typst.viewer').show_fragment(fragment, anchor)
     end,
     on_exit = function()
       vim.fn.delete(target)
@@ -379,6 +424,15 @@ function M.compile_selected(project, lines, opts)
   if not M.is_running(fragment) then
     vim.fn.delete(target)
   end
+end
+
+--- Compile `lines` of a buffer as a document of its own; see
+--- `compile_fragment`.
+---@param project table
+---@param lines string[]
+---@param opts table|nil `{ bufnr = integer, first = integer }` where `lines` come from
+function M.compile_selected(project, lines, opts)
+  M.compile_fragment(project, 'selected', lines, opts)
 end
 
 ---@param project table

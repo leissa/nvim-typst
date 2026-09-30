@@ -131,6 +131,66 @@ describe('context', function()
     end)
   end)
 
+  describe('package_url', function()
+    it('points a preview package at its Universe page', function()
+      T.eq('https://typst.app/universe/package/cetz/0.3.1', context.package_url('@preview/cetz:0.3.1'))
+      T.eq('https://typst.app/universe/package/cetz', context.package_url('@preview/cetz'))
+    end)
+
+    it('has nothing for other namespaces', function()
+      T.eq(nil, context.package_url('@local/mine:0.1.0'))
+    end)
+  end)
+
+  describe('doc_package', function()
+    local open, opened, package_path
+
+    before_each(function()
+      open, opened = vim.ui.open, nil
+      vim.ui.open = function(url)
+        opened = url
+      end
+      package_path = vim.env.TYPST_PACKAGE_PATH
+      vim.env.TYPST_PACKAGE_PATH = dir .. '/data'
+    end)
+
+    after_each(function()
+      vim.ui.open = open
+      vim.env.TYPST_PACKAGE_PATH = package_path
+    end)
+
+    it('opens the Universe page of an imported package', function()
+      main({ '#import "@preview/cetz:0.3.1": canvas' })
+      H.cursor_at('cetz')
+      context.doc_package(project)
+      T.eq('https://typst.app/universe/package/cetz/0.3.1', opened)
+    end)
+
+    it('works from the `#` of the import too', function()
+      main({ '#import "@preview/cetz:0.3.1": canvas' })
+      context.doc_package(project)
+      T.eq('https://typst.app/universe/package/cetz/0.3.1', opened)
+    end)
+
+    it('opens the README of a local package', function()
+      H.write(dir .. '/data/local/mine/0.1.0/typst.toml', { '[package]' })
+      H.write(dir .. '/data/local/mine/0.1.0/README.md', { '# mine' })
+      main({ '#import "@local/mine:0.1.0"' })
+      H.cursor_at('mine')
+      context.doc_package(project)
+      T.eq(dir .. '/data/local/mine/0.1.0/README.md', current_file())
+      T.eq(nil, opened)
+    end)
+
+    it('has nothing to show off an import without an LSP', function()
+      main({ '#import "chap/intro.typ"', 'Just text.' })
+      H.cursor(2, 0)
+      context.doc_package(project)
+      T.eq(nil, opened)
+      T.ok(H.notified('no package under the cursor'))
+    end)
+  end)
+
   it('has nothing to do in plain text without an LSP', function()
     main({ 'Just text.' })
     context.menu(project)

@@ -217,6 +217,7 @@ function H.reset()
     end
   end
   require('nvim-typst.config').setup({})
+  require('nvim-typst.imaps').reset()
   require('nvim-typst.qf').set_level('warning')
   local project = require('nvim-typst.project')
   project.projects = {}

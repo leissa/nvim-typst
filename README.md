@@ -31,7 +31,10 @@ the main file pinned, and tinymist's live preview with forward and inverse
 search. On the editing side: nvim-tex's motions, text objects and
 `ds`/`cs`/`ts` edits translated to Typst, a table of contents across
 `#include`s, tree-sitter indentation, folding and conceal, word counts,
-compiling a selection on its own, and citing from DBLP. A test suite runs in
+compiling a selection on its own, citing from DBLP, insert mode math
+mappings (`` `a `` → `alpha`), `K` for a package's Typst Universe page, and a
+preview of the formula or figure under the cursor, cropped and shown right in
+the buffer with snacks.nvim. A test suite runs in
 CI on Neovim 0.10, stable and nightly.
 
 ## Requirements
@@ -42,7 +45,9 @@ CI on Neovim 0.10, stable and nightly.
 
 Optional: [`tinymist`](https://github.com/Myriad-Dreamin/tinymist) (also for
 the live preview), a PDF viewer that reloads a changed file (zathura, sioyek,
-okular, Skim), and `curl` for `:TypstCite`.
+okular, Skim), `curl` for `:TypstCite`, and
+[snacks.nvim](https://github.com/folke/snacks.nvim) with its image support to
+show previews in the buffer.
 
 `:checkhealth nvim-typst` reports what is missing.
 
