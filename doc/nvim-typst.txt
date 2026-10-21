@@ -405,8 +405,15 @@ there too.
 `options`       Extra flags, e.g. `{ '--font-path', 'fonts' }`. `--root` and
               `--diagnostic-format short` are always passed.
 `out_dir`       Where the PDF goes, relative to the main file's directory.
-              Empty (the default) puts it next to the main file.
-              `$NVIM_TYPST_OUTPUT_DIRECTORY` overrides it.
+              Empty (the default) puts it next to the main file. A
+              function(info) may decide per document; `info` holds `root`,
+              `dir`, `target`, `target_name` and `target_basename`. A
+              directive in the first or last five lines of the main file
+              overrides it for that document: >typst
+                  // !TYPST out_dir = build/slides
+<             `$NVIM_TYPST_OUTPUT_DIRECTORY` overrides both. The output
+              directory is fixed when the project is created;
+              |:TypstReloadState| picks up a changed directive.
 `hooks`         Functions called with every line of compiler output.
 
 In continuous mode every watch cycle is reported on its own: its diagnostics
@@ -1093,7 +1100,8 @@ replaced by `Typst`. Where Typst differs:
     tinymist, so `<localleader>r` and `:TexReverseSearch` have no
     counterpart.
   - The main file directive is `// !TYPST main = ...`, and `b:typst_main`
-    replaces `b:tex_main`.
+    replaces `b:tex_main`. `// !TYPST out_dir = ...` sets the output
+    directory of one document.
   - `root_markers` is new: Typst's `--root` has no LaTeX counterpart.
   - The quickfix levels are `error` and `warning`; typst has no info level.
   - Typst has no environments, so the `e` text objects, `dse`/`cse` and

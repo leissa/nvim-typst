@@ -140,6 +140,29 @@ describe('project', function()
       T.ok(project.out_dir_set)
     end)
 
+    it('prefers a // !TYPST out_dir directive in the main file', function()
+      config.setup({ compiler = { typst = { out_dir = 'build' } } })
+      local main = H.write(dir .. '/main.typ', { '// !TYPST out_dir = build/slides', '#include "ch.typ"' })
+      local ch = H.write(dir .. '/ch.typ', 'x')
+      T.eq(dir .. '/build/slides', project_mod.get(open(ch)).out_dir)
+      T.eq(dir .. '/build/slides/main.pdf', project_mod.output_file(project_mod.get(open(main))))
+    end)
+
+    it('reads the out_dir directive from the buffer of the main file', function()
+      local main = H.write(dir .. '/main.typ', '')
+      local bufnr = H.buf({ '= Title', '', '// !TYPST out_dir = /tmp/pdfs' }, { name = main })
+      T.eq('/tmp/pdfs', project_mod.get(bufnr).out_dir)
+    end)
+
+    it('lets $NVIM_TYPST_OUTPUT_DIRECTORY override the out_dir directive', function()
+      local saved = vim.env.NVIM_TYPST_OUTPUT_DIRECTORY
+      vim.env.NVIM_TYPST_OUTPUT_DIRECTORY = 'env'
+      local main = H.write(dir .. '/main.typ', '// !TYPST out_dir = build')
+      local out_dir = project_mod.get(open(main)).out_dir
+      vim.env.NVIM_TYPST_OUTPUT_DIRECTORY = saved
+      T.eq(dir .. '/env', out_dir)
+    end)
+
     it('redetects after invalidate and forget', function()
       local file = H.write(dir .. '/x.typ', '')
       local bufnr = open(file)

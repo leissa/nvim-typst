@@ -28,6 +28,12 @@ local MAIN_PATTERNS = {
   '^%s*//%s*!%s*[Tt][Yy][Pp][Ss][Tt]%s+main%s*=%s*(.-)%s*$',
 }
 
+--- `// !TYPST out_dir = build/slides`, the `out_dir` option for one document.
+--- It is read from the main file.
+local OUT_DIR_PATTERNS = {
+  '^%s*//%s*!%s*[Tt][Yy][Pp][Ss][Tt]%s+out_dir%s*=%s*(.-)%s*$',
+}
+
 --- How far up the directory tree the main file is searched for.
 local MAX_LEVELS = 5
 
@@ -57,6 +63,19 @@ local function directive_lines(bufnr)
   local head = vim.api.nvim_buf_get_lines(bufnr, 0, math.min(5, total), false)
   local tail = vim.api.nvim_buf_get_lines(bufnr, math.max(0, total - 5), -1, false)
   return vim.list_extend(head, tail)
+end
+
+--- The directive lines of `file`: those of its buffer when it is loaded,
+--- unsaved edits included, or else those on disk.
+---@param file string
+---@return string[]
+local function file_directive_lines(file)
+  local bufnr = vim.fn.bufnr(file)
+  if bufnr ~= -1 and vim.api.nvim_buf_is_loaded(bufnr) then
+    return directive_lines(bufnr)
+  end
+  local lines = util.readlines(file)
+  return vim.list_extend(vim.list_slice(lines, 1, 5), vim.list_slice(lines, math.max(1, #lines - 4)))
 end
 
 --- The nearest directory at or above `dir` holding one of `root_markers`.
@@ -289,7 +308,10 @@ local function new_project(main)
   project.file_info = file_info
 
   local env_out = vim.env.NVIM_TYPST_OUTPUT_DIRECTORY
-  local out_dir = env_out or util.resolve(backend.out_dir, file_info) or ''
+  local out_dir = env_out
+    or match_directive(file_directive_lines(main), OUT_DIR_PATTERNS)
+    or util.resolve(backend.out_dir, file_info)
+    or ''
   project.out_dir_set = out_dir ~= ''
   if out_dir == '' then
     project.out_dir = dir
