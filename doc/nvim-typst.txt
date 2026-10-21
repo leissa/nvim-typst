@@ -646,6 +646,14 @@ item. 'indentkeys' reindent the line when it starts with a typed `)`, `]`,
 `indent.enabled` (default `true`) switches it. Without the `typst` parser, or
 with `enabled = false`, Neovim's own `indent/typst.vim` stays in charge.
 
+`indent.width` (default `nil`) is the number of spaces per level. It sets
+'shiftwidth' and 'softtabstop', which `indent/typst.vim` hardcodes to 2, and
+tinymist's `formatterIndentSize` (unless `lsp.settings` sets it), so that
+typing and formatting agree. Match it to the `-t` you pass `typstyle`: >lua
+    require('nvim-typst').setup({ indent = { width = 4 } })
+<
+With `nil` both are left alone. It applies even without the parser.
+
                                                              *nvim-typst-fold*
 Folding ~
 

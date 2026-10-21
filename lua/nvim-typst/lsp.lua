@@ -56,14 +56,17 @@ end
 ---@return table
 function M.client_config(project)
   local opts = config.get('lsp')
+  -- `indent.width` is only a default; `lsp.settings` still has the last word.
+  local base = { rootPath = project.root, formatterIndentSize = config.get('indent', 'width') }
+  local settings = vim.tbl_extend('force', base, opts.settings or {})
   return vim.tbl_deep_extend('force', {
     name = opts.name,
     cmd = opts.cmd,
     root_dir = project.root,
     -- tinymist reads its settings from the initialization options and from
     -- `workspace/didChangeConfiguration` alike.
-    settings = vim.tbl_extend('force', { rootPath = project.root }, opts.settings or {}),
-    init_options = vim.tbl_extend('force', { rootPath = project.root }, opts.settings or {}),
+    settings = settings,
+    init_options = vim.deepcopy(settings),
   }, opts.config or {})
 end
 

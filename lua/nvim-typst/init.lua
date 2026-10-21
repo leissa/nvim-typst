@@ -20,6 +20,11 @@ local function buffer_options(bufnr)
     -- `[i`, `[d` and friends should follow `#include "foo.typ"`.
     vim.opt_local.include = [[\v<(include|import)\s*"\zs[^"]+\ze"]]
   end)
+  local width = config.get('indent', 'width')
+  if width then
+    vim.bo[bufnr].shiftwidth = width
+    vim.bo[bufnr].softtabstop = width
+  end
 end
 
 --- Is there a `highlights` query for the `typst` parser?

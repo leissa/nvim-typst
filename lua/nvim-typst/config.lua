@@ -226,6 +226,11 @@ M.defaults = {
   --- Typst-aware indentation through `indentexpr`. Needs the `typst` parser.
   indent = {
     enabled = true,
+    --- Spaces per indentation level: sets 'shiftwidth' and 'softtabstop',
+    --- which `indent/typst.vim` hardcodes to 2, and tinymist's
+    --- `formatterIndentSize`, so formatting agrees with typing. Match it to
+    --- the `-t` you give `typstyle`. Nil leaves both alone.
+    width = nil,
   },
 
   toc = {
