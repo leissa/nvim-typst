@@ -5,6 +5,7 @@ local nvim_typst = require('nvim-typst')
 --- Every command `nvim-typst.commands` is meant to register: nvim-tex's,
 --- as far as Typst has them.
 local COMMANDS = {
+  'TypstCetzPreview',
   'TypstCite',
   'TypstClean',
   'TypstCompile',

@@ -136,6 +136,7 @@ The full default table lives in `lua/nvim-typst/config.lua` and is printed by
 `toc.*`                       See |nvim-typst-toc|.
 `conceal.*`                   See |nvim-typst-conceal|.
 `cite.*`                      See |nvim-typst-cite|.
+`cetz.*`                      See |nvim-typst-cetz|.
 `mappings.*`                  See |nvim-typst-mappings|.
 
 ==============================================================================
@@ -285,6 +286,11 @@ Every command acts on the project of the current buffer.
 :[range]TypstPreviewFragment                           *:TypstPreviewFragment*
     Compile the math or code under the cursor, or the lines in [range], on
     a page cropped to it, and show it below. See |nvim-typst-fragment|.
+
+:TypstCetzPreview                                          *:TypstCetzPreview*
+    Compile the CeTZ canvas under the cursor on its own, on a page cropped
+    to it, and show it below; nvim-tex's `:TexTikzPreview`. See
+    |nvim-typst-cetz|.
 
 :TypstPreviewClose                                        *:TypstPreviewClose*
     Remove the fragment shown in the buffer.
@@ -535,10 +541,10 @@ Previewing a fragment ~
 
 `<localleader>p` (|:TypstPreviewFragment|), nvim-tex's TikZ preview for
 Typst, compiles what is under the cursor on its own, on a page cropped to it:
-the outermost math around the cursor, or else the outermost embedded code
-that is not a definition, such as `#figure(...)`, `#table(...)` or
-`#cetz.canvas(...)`. In visual mode, and with a [range], it takes the lines
-instead.
+the CeTZ canvas around the cursor (|nvim-typst-cetz|), or else the outermost
+math around it, or else the outermost embedded code that is not a
+definition, such as `#figure(...)` or `#table(...)`. In visual mode, and with
+a [range], it takes the lines instead.
 
 The fragment is set in the document it comes from, as with
 |nvim-typst-compile-selected|: after the preamble of the main file, and after
@@ -550,6 +556,29 @@ the page, without header, footer or page number. Errors go to the quickfix
 list, at the lines of the buffer they come from.
 
 `preview.border`   Space around the cropped fragment. Default `'2pt'`.
+
+                                                             *nvim-typst-cetz*
+CeTZ canvases ~
+
+A CeTZ canvas is previewed as a whole, like a TikZ picture in nvim-tex: with
+the cursor anywhere in it, on a `$alpha$` label of a `content(...)` too,
+`<localleader>p` shows the canvas rather than the math or code inside it, and
+inside `#figure(cetz.canvas(...), caption: [...])` the canvas without the
+figure around it. |:TypstCetzPreview| previews the canvas and nothing else.
+A canvas bound by `#let pic = cetz.canvas(...)` is previewed too, but not one
+in the body of a function, `#let pic(n) = cetz.canvas(...)`: `n` only has a
+value in a call. The `#import` of CeTZ comes along with the other top-level
+definitions before the canvas. >lua
+
+    cetz = {
+      functions = { 'canvas' },
+    }
+<
+`cetz.functions` names the functions whose call is a canvas, by the last
+name of the callee: `canvas` covers `cetz.canvas(...)`, `canvas(...)` after
+`#import "@preview/cetz:0.4.2": canvas`, and `c.canvas(...)` with the package
+imported `as c`. Add `'diagram'` for fletcher, which draws with CeTZ. The
+list is replaced, not merged, when you set it.
 
                                                            *nvim-typst-snacks*
 Fragments in the buffer ~
@@ -1114,9 +1143,10 @@ replaced by `Typst`. Where Typst differs:
   - The style imaps use `@` rather than `#` as their leader, and the
     expansions are Typst names (`alpha`, `bold(x)`); see |nvim-typst-imaps|.
   - `K` opens a package's Typst Universe page rather than `texdoc`.
-  - There is no TikZ; `<localleader>p` previews the math or code under the
-    cursor instead (|:TypstPreviewFragment|, nvim-tex's `:TexTikzPreview`).
-    typst renders it as a PNG for snacks.nvim, with no PDF to convert.
+  - There is no TikZ; CeTZ canvases take its place for |:TypstCetzPreview|,
+    and `<localleader>p` previews the math or code under the cursor besides
+    (|:TypstPreviewFragment|). typst renders it as a PNG for snacks.nvim,
+    with no PDF to convert.
   - Citations are written as `@key`, into the `.bib` file a
     `#bibliography(...)` names.
 

@@ -107,6 +107,14 @@ M.defaults = {
     border = '2pt',
   },
 
+  --- CeTZ canvases, which `:TypstCetzPreview` and `:TypstPreviewFragment`
+  --- preview as a whole.
+  cetz = {
+    --- Functions whose call is a canvas, by the last name of the callee:
+    --- `canvas` covers `cetz.canvas(...)` and `canvas(...)`.
+    functions = { 'canvas' },
+  },
+
   qf = {
     enabled = true,
     --- Open the quickfix window when the compilation produced entries.

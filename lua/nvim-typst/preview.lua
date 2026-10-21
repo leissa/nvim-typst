@@ -14,19 +14,25 @@
 --- It is compiled like `:TypstCompileSelected`, and shown below its last line
 --- with snacks.nvim (`view.snacks`), or else in the viewer, which is kept
 --- between runs.
+local cetz = require('nvim-typst.cetz')
 local compiler = require('nvim-typst.compiler')
 local ts = require('nvim-typst.ts')
 local util = require('nvim-typst.util')
 
 local M = {}
 
---- What to preview at the cursor: the outermost math around it, or else the
+--- What to preview at the cursor: the CeTZ canvas around it (see
+--- `nvim-typst.cetz`), or else the outermost math around it, or else the
 --- outermost embedded code that is not a definition, `#figure(...)` or
 --- `#table(...)`.
 ---@param bufnr integer
 ---@return TSNode|nil
 function M.fragment_at_cursor(bufnr)
   local node = ts.node_at_cursor(bufnr)
+  local canvas = cetz.canvas(node, bufnr)
+  if canvas then
+    return canvas
+  end
   local outer_math, outer_code
   while node do
     if ts.MATH[node:type()] then
@@ -89,19 +95,31 @@ function M.preview_lines(project, lines, first)
   })
 end
 
+--- Compile `fragment`, a node of the current buffer, and show it.
+---@param project table
+---@param fragment TSNode
+function M.preview_node(project, fragment)
+  local bufnr = vim.api.nvim_get_current_buf()
+  local sr = fragment:range()
+  local text = vim.treesitter.get_node_text(fragment, bufnr)
+  -- Embedded code in markup keeps its `#`, and math has none to begin with;
+  -- a call in code, such as the canvas of `#figure(cetz.canvas(...))`, needs
+  -- one to be embedded.
+  if fragment:type() == 'call' then
+    text = '#' .. text
+  end
+  M.preview_lines(project, vim.split(text, '\n', { plain = true }), sr + 1)
+end
+
 --- Compile the fragment under the cursor and show it.
 ---@param project table
 function M.preview(project)
-  local bufnr = vim.api.nvim_get_current_buf()
-  local fragment = M.fragment_at_cursor(bufnr)
+  local fragment = M.fragment_at_cursor(vim.api.nvim_get_current_buf())
   if not fragment then
     util.warn('no math or code under the cursor')
     return
   end
-  local sr = fragment:range()
-  local text = vim.treesitter.get_node_text(fragment, bufnr)
-  -- Embedded code in markup keeps its `#`; in math it has none to begin with.
-  M.preview_lines(project, vim.split(text, '\n', { plain = true }), sr + 1)
+  M.preview_node(project, fragment)
 end
 
 return M

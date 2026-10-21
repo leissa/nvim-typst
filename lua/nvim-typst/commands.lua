@@ -173,6 +173,13 @@ local COMMANDS = {
     { range = true, desc = 'Compile the math or code under the cursor, or the range, on its own and show it' },
   },
   {
+    'TypstCetzPreview',
+    function()
+      require('nvim-typst.cetz').preview(project())
+    end,
+    { desc = 'Compile the CeTZ canvas under the cursor on its own and show it' },
+  },
+  {
     'TypstPreviewClose',
     function()
       require('nvim-typst.viewer.snacks').close()

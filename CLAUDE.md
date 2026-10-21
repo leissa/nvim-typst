@@ -71,7 +71,8 @@ code must work on 0.10. The parser revision `TS_TYPST_REV` is pinned in both `Ma
   `compiler.compile_selected` writes a hidden `.<name>.selected.typ` next to the buffer (so relative paths resolve),
   prefixed with the main file's preamble, and maps diagnostics back via `project.qf_translate`; it is
   `compile_fragment(project, name, …)`, which also backs `preview.lua` (`<localleader>p`: math/code under the
-  cursor on a cropped page, `#show: template` left out). Fragments live in `project.fragments[name]`; with
+  cursor on a cropped page, `#show: template` left out; a CeTZ canvas around the cursor, found by `cetz.lua`,
+  wins over the math/code inside it, and `:TypstCetzPreview` previews only canvases). Fragments live in `project.fragments[name]`; with
   snacks.nvim (`viewer/snacks.lua`) typst renders them as PNG (`fragment.format`), shown below their last line.
 - **init.lua** wires everything on `FileType`: buffer options, tree-sitter highlighting (only if a `highlights` query
   exists, otherwise regex syntax is kept), conceal/indent/fold, LSP, keymaps, build-on-save, and kills running watches
