@@ -67,6 +67,7 @@ end
 ---
 --- `opts.pdf` insists on the PDF: a live preview needs a source file, which
 --- a compiled selection no longer has, so that is opened with `general` then.
+--- So is a document with `// !TYPST lsp = off`: the preview runs in tinymist.
 ---@param project table
 ---@param opts table|nil `{ pdf = boolean }`
 function M.view(project, opts)
@@ -77,7 +78,7 @@ function M.view(project, opts)
 
   local method = config.get('view', 'method')
   local preferred = M.backends[method]
-  if opts and opts.pdf and preferred and preferred.view then
+  if ((opts and opts.pdf) or project.lsp == false) and preferred and preferred.view then
     method = 'general'
   end
   local backend = M.backend(method)

@@ -9,6 +9,10 @@
 --- main one; a chapter then reports every label and variable it takes from
 --- the rest of the document as undefined. With `lsp.pin_main` the main file
 --- of the current buffer's project is pinned whenever it changes.
+---
+--- A document whose main file says `// !TYPST lsp = off` gets neither: no
+--- tinymist is started for it, and one configured elsewhere is not told to
+--- compile it as a whole.
 local config = require('nvim-typst.config')
 local project_mod = require('nvim-typst.project')
 local util = require('nvim-typst.util')
@@ -75,7 +79,7 @@ end
 ---@return integer|nil client_id
 function M.attach(bufnr)
   local opts = config.get('lsp')
-  if not opts.enabled then
+  if not opts.enabled or not project_mod.get(bufnr).lsp then
     return nil
   end
   if already_attached(bufnr, opts.name) then
@@ -145,8 +149,9 @@ function M.pin_main(bufnr, force)
   if not client then
     return
   end
-  local main = project_mod.get(bufnr).main
-  if main == '' or (pinned[client.id] == main and not force) then
+  local project = project_mod.get(bufnr)
+  local main = project.main
+  if main == '' or not project.lsp or (pinned[client.id] == main and not force) then
     return
   end
   if M.execute('tinymist.pinMain', { main }, bufnr) then

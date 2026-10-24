@@ -643,6 +643,18 @@ nvim-lspconfig or |vim.lsp.enable()| -- nvim-typst leaves it alone; set
 `lsp.config`      Extra keys for |vim.lsp.start()|: capabilities, on_attach,
                 handlers, ...
 
+tinymist compiles the whole document on every change and keeps a lot of it
+in memory: for a big slide deck it may need several times what `typst watch`
+does, enough to run the machine out of memory. A directive in the first or
+last five lines of the main file turns the LSP off for that document and the
+files it includes: >typst
+    // !TYPST lsp = off
+<nvim-typst then starts no tinymist for its buffers and does not pin it in a
+tinymist you configure yourself (which still attaches, but checks each file
+on its own). The `tinymist` viewer needs the server, so `<localleader>v`
+(|:TypstView|) opens the PDF instead. |:TypstReloadState| picks up a changed
+directive, but a tinymist that already runs is not stopped.
+
 ==============================================================================
 12. TREE-SITTER                                        *nvim-typst-treesitter*
 
@@ -1130,7 +1142,8 @@ replaced by `Typst`. Where Typst differs:
     counterpart.
   - The main file directive is `// !TYPST main = ...`, and `b:typst_main`
     replaces `b:tex_main`. `// !TYPST out_dir = ...` sets the output
-    directory of one document.
+    directory of one document, `// !TYPST lsp = off` keeps tinymist away
+    from it.
   - `root_markers` is new: Typst's `--root` has no LaTeX counterpart.
   - The quickfix levels are `error` and `warning`; typst has no info level.
   - Typst has no environments, so the `e` text objects, `dse`/`cse` and

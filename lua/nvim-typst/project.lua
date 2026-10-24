@@ -34,6 +34,13 @@ local OUT_DIR_PATTERNS = {
   '^%s*//%s*!%s*[Tt][Yy][Pp][Ss][Tt]%s+out_dir%s*=%s*(.-)%s*$',
 }
 
+--- `// !TYPST lsp = off`: no tinymist for one document. tinymist compiles the
+--- whole document on every change and can need far more memory than typst
+--- itself, too much for a big slide deck. It is read from the main file.
+local LSP_PATTERNS = {
+  '^%s*//%s*!%s*[Tt][Yy][Pp][Ss][Tt]%s+lsp%s*=%s*(.-)%s*$',
+}
+
 --- How far up the directory tree the main file is searched for.
 local MAX_LEVELS = 5
 
@@ -296,6 +303,7 @@ local function new_project(main)
     compiler = nil, -- set by nvim-typst.compiler
     viewer = nil, -- set by nvim-typst.viewer
     output = {}, -- captured compiler output
+    lsp = true, -- false with `// !TYPST lsp = off`
   }
 
   local file_info = {
@@ -307,9 +315,13 @@ local function new_project(main)
   }
   project.file_info = file_info
 
+  local directives = file_directive_lines(main)
+  local lsp = match_directive(directives, LSP_PATTERNS)
+  project.lsp = not (lsp and vim.tbl_contains({ 'off', 'false', 'no', '0' }, lsp:lower()))
+
   local env_out = vim.env.NVIM_TYPST_OUTPUT_DIRECTORY
   local out_dir = env_out
-    or match_directive(file_directive_lines(main), OUT_DIR_PATTERNS)
+    or match_directive(directives, OUT_DIR_PATTERNS)
     or util.resolve(backend.out_dir, file_info)
     or ''
   project.out_dir_set = out_dir ~= ''

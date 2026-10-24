@@ -104,6 +104,15 @@ describe('lsp', function()
       T.eq(nil, lsp.attach(bufnr))
       T.falsy(H.notified('not found'))
     end)
+
+    it('does nothing for a document with // !TYPST lsp = off', function()
+      config.setup({ lsp = { cmd = { 'no-such-tinymist-off' } } })
+      local file = H.write(dir .. '/off.typ', '// !TYPST lsp = off')
+      H.notifications = {}
+      local bufnr = H.buf(vim.fn.readfile(file), { name = file })
+      T.eq(nil, lsp.attach(bufnr))
+      T.falsy(H.notified('not found'))
+    end)
   end)
 
   describe('pin_main', function()
@@ -133,6 +142,17 @@ describe('lsp', function()
       config.setup({ lsp = { pin_main = false } })
       local commands = {}
       local file = H.write(dir .. '/solo.typ', '= Solo')
+      local bufnr = H.buf(vim.fn.readfile(file), { name = file, filetype = 'text' })
+      local cfg = lsp.client_config(project_mod.get(bufnr))
+      cfg.cmd = fake_server(commands)
+      vim.lsp.start(cfg, { bufnr = bufnr })
+      vim.wait(200)
+      T.eq({}, commands)
+    end)
+
+    it('is skipped for a document with // !TYPST lsp = off', function()
+      local commands = {}
+      local file = H.write(dir .. '/off.typ', { '= Off', '// !TYPST lsp = off' })
       local bufnr = H.buf(vim.fn.readfile(file), { name = file, filetype = 'text' })
       local cfg = lsp.client_config(project_mod.get(bufnr))
       cfg.cmd = fake_server(commands)
