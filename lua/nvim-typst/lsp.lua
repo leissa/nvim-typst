@@ -11,8 +11,9 @@
 --- of the current buffer's project is pinned whenever it changes.
 ---
 --- A document whose main file says `// !TYPST lsp = off` gets neither: no
---- tinymist is started for it, and one configured elsewhere is not told to
---- compile it as a whole.
+--- tinymist is started for it, and one configured elsewhere (LazyVim's typst
+--- extra, `vim.lsp.enable`, ...) is detached from its buffers again and
+--- stopped once it has no buffer left.
 local config = require('nvim-typst.config')
 local project_mod = require('nvim-typst.project')
 local util = require('nvim-typst.util')
@@ -159,6 +160,33 @@ function M.pin_main(bufnr, force)
   end
 end
 
+--- `client:stop` from 0.11 on, `client.stop` before.
+---@param client vim.lsp.Client
+local function stop(client)
+  if vim.fn.has('nvim-0.11') == 1 then
+    return client:stop()
+  end
+  ---@diagnostic disable-next-line: missing-parameter
+  return client.stop()
+end
+
+--- Detach `client` from `bufnr`, a buffer of a document with
+--- `// !TYPST lsp = off`, and stop it when that was its last buffer.
+---@param client vim.lsp.Client
+---@param bufnr integer
+local function refuse(client, bufnr)
+  -- detaching from within LspAttach confuses the attach still in progress
+  vim.schedule(function()
+    if not vim.api.nvim_buf_is_valid(bufnr) or not vim.lsp.buf_is_attached(bufnr, client.id) then
+      return
+    end
+    vim.lsp.buf_detach_client(bufnr, client.id)
+    if next(client.attached_buffers) == nil then
+      stop(client)
+    end
+  end)
+end
+
 --- The main file pinned in the client attached to `bufnr`, if any.
 ---@param bufnr integer|nil
 ---@return string|nil
@@ -173,10 +201,18 @@ local augroup = vim.api.nvim_create_augroup('nvim-typst-lsp', { clear = true })
 function M.setup()
   vim.api.nvim_create_autocmd('LspAttach', {
     group = augroup,
-    desc = 'nvim-typst: pin the main file in tinymist',
+    desc = 'nvim-typst: pin the main file in tinymist, or keep it away',
     callback = function(args)
       local client = vim.lsp.get_client_by_id(args.data.client_id)
-      if client and client.name == config.get('lsp', 'name') then
+      if not client or client.name ~= config.get('lsp', 'name') then
+        return
+      end
+      if
+        vim.tbl_contains(config.get('filetypes'), vim.bo[args.buf].filetype)
+        and project_mod.get(args.buf).lsp == false
+      then
+        refuse(client, args.buf)
+      else
         M.pin_main(args.buf)
       end
     end,

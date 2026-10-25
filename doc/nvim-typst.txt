@@ -649,11 +649,13 @@ does, enough to run the machine out of memory. A directive in the first or
 last five lines of the main file turns the LSP off for that document and the
 files it includes: >typst
     // !TYPST lsp = off
-<nvim-typst then starts no tinymist for its buffers and does not pin it in a
-tinymist you configure yourself (which still attaches, but checks each file
-on its own). The `tinymist` viewer needs the server, so `<localleader>v`
-(|:TypstView|) opens the PDF instead. |:TypstReloadState| picks up a changed
-directive, but a tinymist that already runs is not stopped.
+<nvim-typst then starts no tinymist for its buffers, and a tinymist you
+configure yourself (nvim-lspconfig, LazyVim's typst extra, |vim.lsp.enable()|,
+...) is detached from them again as soon as it attaches -- and stopped, unless
+it still serves other buffers. The `tinymist` viewer needs the server, so
+`<localleader>v` (|:TypstView|) opens the PDF instead. |:TypstReloadState|
+picks up a changed directive, but a tinymist that already runs is not
+stopped.
 
 ==============================================================================
 12. TREE-SITTER                                        *nvim-typst-treesitter*
